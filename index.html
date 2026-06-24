@@ -1,0 +1,987 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>지표 관리 대시보드 — 좋은삼선병원</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body { font-family:'Noto Sans KR','맑은 고딕',sans-serif; background:#F0F4F8; color:#1E293B; font-size:14px; }
+
+/* ── 헤더 ── */
+.header {
+  background:linear-gradient(135deg,#1B3A6B 0%,#1E5FA8 100%);
+  color:#fff; padding:18px 32px;
+  display:flex; justify-content:space-between; align-items:center;
+}
+.header-left h1 { font-size:20px; font-weight:700; letter-spacing:-0.3px; }
+.header-left .sub { font-size:12px; color:#A8C4E8; margin-top:3px; }
+.header-right { display:flex; gap:12px; align-items:center; }
+.hbadge { background:rgba(255,255,255,0.15); border-radius:10px; padding:8px 18px; text-align:center; min-width:80px; }
+.hbadge .num { font-size:22px; font-weight:700; }
+.hbadge .lbl { font-size:11px; color:#A8C4E8; margin-top:1px; }
+.hbadge.ok .num { color:#6EE7B7; }
+.hbadge.ng .num { color:#FCA5A5; }
+
+/* ── 데이터 업로드 패널 ── */
+.upload-panel {
+  background:#fff; border-bottom:1px solid #E2E8F0;
+  padding:0 32px;
+}
+.upload-toggle {
+  display:flex; align-items:center; gap:8px; padding:10px 0;
+  cursor:pointer; font-size:13px; color:#64748B; user-select:none;
+}
+.upload-toggle:hover { color:#1B3A6B; }
+.upload-toggle .arrow { transition:transform .2s; }
+.upload-toggle.open .arrow { transform:rotate(90deg); }
+.upload-body { display:none; padding:12px 0 18px; }
+.upload-body.show { display:block; }
+.upload-desc { font-size:12px; color:#64748B; margin-bottom:10px; line-height:1.6; }
+.upload-desc b { color:#1B3A6B; }
+.upload-tabs { display:flex; gap:8px; margin-bottom:12px; }
+.upload-tab { padding:6px 14px; border-radius:6px; border:1px solid #E2E8F0; font-size:12px; cursor:pointer; color:#64748B; background:#fff; }
+.upload-tab.active { background:#1B3A6B; color:#fff; border-color:#1B3A6B; }
+.quarter-select-row { display:flex; gap:8px; align-items:center; margin-bottom:10px; }
+.quarter-select-row label { font-size:12px; color:#64748B; }
+.quarter-select-row select { padding:5px 10px; border:1px solid #E2E8F0; border-radius:6px; font-size:12px; }
+/* textarea 제거됨 */
+.upload-actions { display:flex; gap:8px; margin-top:8px; }
+.btn-primary { background:#1B3A6B; color:#fff; border:none; border-radius:7px; padding:8px 18px; font-size:12px; cursor:pointer; font-family:inherit; }
+.btn-primary:hover { background:#153260; }
+.btn-secondary { background:#F1F5F9; color:#64748B; border:1px solid #E2E8F0; border-radius:7px; padding:8px 18px; font-size:12px; cursor:pointer; font-family:inherit; }
+.upload-status { font-size:12px; color:#16A34A; margin-top:6px; display:none; }
+.upload-help { font-size:11px; color:#94A3B8; margin-top:6px; line-height:1.5; }
+#dropZone:hover { border-color:#1B3A6B; background:#EFF6FF; }
+#dropZone.dragover { border-color:#1B3A6B; background:#EFF6FF; transform:scale(1.01); }
+
+/* ── 탭 ── */
+.tabs { background:#fff; border-bottom:2px solid #E2E8F0; display:flex; padding:0 32px; overflow-x:auto; }
+.tab { padding:13px 18px; font-size:13px; cursor:pointer; color:#64748B; border-bottom:3px solid transparent; margin-bottom:-2px; white-space:nowrap; transition:all .2s; }
+.tab.active { color:#1B3A6B; border-bottom-color:#1B3A6B; font-weight:700; }
+.tab:hover:not(.active) { color:#1B3A6B; background:#F8FAFC; }
+
+/* ── 컨텐츠 ── */
+.content { padding:20px 32px 40px; }
+.pane { display:none; }
+.pane.active { display:block; }
+
+/* ── 요약 카드 ── */
+.summary { display:grid; grid-template-columns:repeat(4,1fr); gap:14px; margin-bottom:20px; }
+.card { background:#fff; border-radius:12px; padding:18px 20px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+.card .val { font-size:30px; font-weight:700; margin-bottom:2px; }
+.card .lbl { font-size:12px; color:#64748B; }
+.card .sub-lbl { font-size:11px; color:#94A3B8; margin-top:2px; }
+.card.total .val { color:#1B3A6B; }
+.card.ok .val    { color:#16A34A; }
+.card.ng .val    { color:#DC2626; }
+.card.rate .val  { color:#0D7A8A; }
+
+/* 달성률 바 */
+.rate-bar { background:#E2E8F0; border-radius:99px; height:7px; margin:8px 0 3px; overflow:hidden; }
+.rate-bar-fill { height:100%; border-radius:99px; background:linear-gradient(90deg,#16A34A,#4ADE80); transition:width 1.2s ease; }
+
+/* ── 영역별 현황 바 차트 ── */
+.area-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:14px; margin-bottom:20px; }
+.area-card { background:#fff; border-radius:12px; padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,.07); }
+.area-card .area-name { font-size:13px; font-weight:700; color:#1E293B; margin-bottom:10px; display:flex; justify-content:space-between; align-items:center; }
+.area-card .area-rate { font-size:18px; font-weight:700; }
+.area-progress { background:#E2E8F0; border-radius:99px; height:6px; margin:6px 0; overflow:hidden; }
+.area-progress-fill { height:100%; border-radius:99px; transition:width 1.2s ease; }
+.area-counts { display:flex; gap:12px; font-size:11px; color:#64748B; }
+.area-counts .ok-c { color:#16A34A; font-weight:600; }
+.area-counts .ng-c { color:#DC2626; font-weight:600; }
+
+/* ── 지표 테이블 ── */
+.section { background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.07); margin-bottom:16px; overflow:hidden; }
+.section-header { padding:13px 18px; font-size:13px; font-weight:700; display:flex; align-items:center; gap:8px; border-bottom:1px solid #F1F5F9; }
+.dot { width:9px; height:9px; border-radius:50%; flex-shrink:0; }
+table { width:100%; border-collapse:collapse; font-size:12.5px; }
+th { background:#F8FAFC; color:#64748B; font-weight:600; padding:9px 13px; text-align:left; border-bottom:1px solid #E2E8F0; white-space:nowrap; }
+td { padding:10px 13px; border-bottom:1px solid #F8FAFC; vertical-align:middle; }
+tr:last-child td { border-bottom:none; }
+tr:hover td { background:#FAFBFD; }
+.badge-ok { background:#DCFCE7; color:#16A34A; border-radius:5px; padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap; }
+.badge-ng { background:#FEE2E2; color:#DC2626; border-radius:5px; padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap; }
+.badge-na { background:#F1F5F9; color:#94A3B8; border-radius:5px; padding:2px 9px; font-size:11px; font-weight:700; white-space:nowrap; }
+.result-val { font-weight:700; font-size:13px; }
+.ind-name { font-weight:600; color:#1E293B; }
+.ind-num { font-size:11px; color:#94A3B8; }
+.dept-tag { background:#EFF6FF; color:#2563EB; border-radius:4px; padding:1px 7px; font-size:11px; white-space:nowrap; }
+
+/* ── 월별 미니 차트 ── */
+.mini-bars { display:flex; gap:3px; align-items:flex-end; height:28px; }
+.mini-bar { width:12px; border-radius:2px 2px 0 0; background:#DBEAFE; position:relative; min-height:2px; }
+.mini-bar.m1 { background:#93C5FD; }
+.mini-bar.m2 { background:#60A5FA; }
+.mini-bar.m3 { background:#3B82F6; }
+
+/* ── 상세 모달 ── */
+.modal-overlay { display:none; position:fixed; inset:0; background:rgba(0,0,0,.4); z-index:100; align-items:center; justify-content:center; }
+.modal-overlay.show { display:flex; }
+.modal { background:#fff; border-radius:14px; padding:28px 32px; max-width:560px; width:90%; max-height:80vh; overflow-y:auto; }
+.modal h3 { font-size:16px; font-weight:700; color:#1B3A6B; margin-bottom:6px; }
+.modal .modal-num { font-size:12px; color:#94A3B8; margin-bottom:18px; }
+.modal-section { margin-bottom:14px; }
+.modal-section label { font-size:11px; color:#64748B; font-weight:600; text-transform:uppercase; letter-spacing:.5px; display:block; margin-bottom:4px; }
+.modal-section p { font-size:13px; color:#334155; line-height:1.6; background:#F8FAFC; border-radius:7px; padding:10px 12px; }
+.modal-row { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:10px; margin-bottom:14px; }
+.modal-stat { background:#F8FAFC; border-radius:8px; padding:10px 12px; }
+.modal-stat .ms-lbl { font-size:11px; color:#94A3B8; }
+.modal-stat .ms-val { font-size:16px; font-weight:700; color:#1B3A6B; margin-top:2px; }
+.modal-trend { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin-bottom:14px; }
+.modal-trend .mt-item { background:#F0FDF4; border-radius:7px; padding:8px 10px; text-align:center; }
+.modal-trend .mt-item.ng { background:#FFF1F2; }
+.modal-trend .mt-lbl { font-size:10px; color:#64748B; }
+.modal-trend .mt-val { font-size:14px; font-weight:700; color:#16A34A; }
+.modal-trend .mt-item.ng .mt-val { color:#DC2626; }
+.modal-close { margin-top:18px; width:100%; padding:10px; background:#F1F5F9; border:none; border-radius:8px; font-size:13px; color:#64748B; cursor:pointer; font-family:inherit; }
+.modal-close:hover { background:#E2E8F0; }
+
+/* ── 추이분석 탭 ── */
+.trend-grid { display:grid; grid-template-columns:repeat(2,1fr); gap:14px; }
+.trend-card { background:#fff; border-radius:12px; padding:16px 18px; box-shadow:0 1px 3px rgba(0,0,0,.07); cursor:pointer; transition:box-shadow .2s; }
+.trend-card:hover { box-shadow:0 3px 10px rgba(0,0,0,.12); }
+.trend-card h4 { font-size:12px; font-weight:700; color:#1E293B; margin-bottom:4px; }
+.trend-card .tc-dept { font-size:11px; color:#94A3B8; margin-bottom:10px; }
+.year-bars { display:flex; gap:6px; align-items:flex-end; height:50px; }
+.year-bar-wrap { display:flex; flex-direction:column; align-items:center; gap:3px; flex:1; }
+.year-bar { width:100%; border-radius:3px 3px 0 0; background:#DBEAFE; min-height:2px; }
+.year-bar.y23 { background:#D1D5DB; }
+.year-bar.y24 { background:#FCD34D; }
+.year-bar.y25 { background:#60A5FA; }
+.year-bar.y26 { background:#1B3A6B; }
+.year-label { font-size:9px; color:#94A3B8; }
+.year-val { font-size:9px; color:#64748B; font-weight:600; }
+
+/* ── 반응형 ── */
+@media (max-width:900px) {
+  .header { flex-direction:column; gap:12px; padding:16px 20px; }
+  .summary { grid-template-columns:repeat(2,1fr); }
+  .area-grid { grid-template-columns:repeat(2,1fr); }
+  .content { padding:16px 16px 40px; }
+  .tabs { padding:0 16px; }
+  .upload-panel { padding:0 16px; }
+  .trend-grid { grid-template-columns:1fr; }
+}
+@media (max-width:600px) {
+  .summary { grid-template-columns:1fr 1fr; }
+  .area-grid { grid-template-columns:1fr; }
+  .modal-row { grid-template-columns:1fr 1fr; }
+}
+
+/* ── 인증용 상세표 ── */
+.cert-table-wrap { overflow-x:auto; }
+.cert-table { width:100%; border-collapse:collapse; font-size:12px; }
+.cert-table th { background:#1B3A6B; color:#fff; padding:8px 10px; text-align:left; white-space:nowrap; font-weight:600; }
+.cert-table td { padding:8px 10px; border-bottom:1px solid #F1F5F9; vertical-align:top; line-height:1.5; }
+.cert-table tr:nth-child(even) td { background:#F8FAFC; }
+.cert-table tr:hover td { background:#EFF6FF; }
+
+.empty-state { text-align:center; padding:60px 20px; color:#94A3B8; }
+.empty-state .emoji { font-size:36px; margin-bottom:12px; }
+.empty-state p { font-size:13px; }
+
+/* ── 인쇄 버튼 ── */
+.print-bar { display:flex; justify-content:flex-end; gap:8px; margin-bottom:12px; }
+.btn-print { background:#1B3A6B; color:#fff; border:none; border-radius:7px; padding:8px 18px; font-size:12px; cursor:pointer; font-family:inherit; }
+.btn-print:hover { background:#153260; }
+
+
+
+/* ── 인쇄 스타일 ── */
+@media print {
+  * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
+  body { background:#fff; font-size:11px; }
+  .header { background:#1B3A6B !important; padding:12px 20px; }
+  .header .sub, .hbadge .lbl { color:#A8C4E8 !important; }
+  .upload-panel, .tabs, .print-bar, #aiSummaryBtn { display:none !important; }
+  .content { padding:10px 14px; }
+  /* 현재 활성 탭만 인쇄 */
+  .pane { display:none !important; }
+  .pane.active { display:block !important; }
+  /* 카드 */
+  .summary { grid-template-columns:repeat(4,1fr); gap:10px; }
+  .card { box-shadow:none; border:1px solid #E2E8F0; padding:12px; }
+  .card .val { font-size:22px; }
+  /* 영역카드 */
+  .area-grid { grid-template-columns:repeat(3,1fr); }
+  .area-card { box-shadow:none; border:1px solid #E2E8F0; }
+  /* 섹션 테이블 */
+  .section { box-shadow:none; border:1px solid #E2E8F0; margin-bottom:10px; }
+  table { font-size:10px; }
+  th { font-size:10px; padding:6px 8px; background:#1B3A6B !important; color:#fff !important; }
+  td { padding:6px 8px; font-size:10px; }
+  /* 인증용 상세 */
+  .cert-table th { background:#1B3A6B !important; color:#fff !important; font-size:9px; padding:5px 6px; }
+  .cert-table td { font-size:9px; padding:4px 6px; }
+  .cert-table tr:nth-child(even) td { background:#F8FAFC !important; }
+  .improvement-cell { max-width:180px; font-size:9px; }
+  /* 뱃지 색상 */
+  .badge-ok { background:#DCFCE7 !important; color:#16A34A !important; }
+  .badge-ng { background:#FEE2E2 !important; color:#DC2626 !important; }
+  .badge-na { background:#F1F5F9 !important; }
+  /* AI 총평 패널 */
+  #aiSummaryPanel { border:1px solid #DBEAFE; }
+  @page { size:A4 landscape; margin:10mm; }
+}
+</style>
+</head>
+<body>
+
+<!-- ── 헤더 ── -->
+<div class="header">
+  <div class="header-left">
+    <h1>📊 지표 관리 대시보드</h1>
+    <div class="sub">좋은삼선병원 QPS팀 · <span id="currentQuarterLabel">2026년 1분기</span></div>
+  </div>
+  <div class="header-right">
+    <div class="hbadge"><div class="num" id="totalCount">—</div><div class="lbl">전체 지표</div></div>
+    <div class="hbadge ok"><div class="num" id="okCount">—</div><div class="lbl">달성</div></div>
+    <div class="hbadge ng"><div class="num" id="ngCount">—</div><div class="lbl">미달</div></div>
+    <div class="hbadge"><div class="num" id="rateVal" style="color:#6EE7B7;">—</div><div class="lbl">달성률</div></div>
+    <button id="aiSummaryBtn" onclick="generateAISummary()" style="background:rgba(255,255,255,0.18);border:1.5px solid rgba(255,255,255,0.4);color:#fff;border-radius:10px;padding:8px 16px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;transition:all .2s;">✨ AI 총평 생성</button>
+  </div>
+</div>
+
+<!-- ── 데이터 업로드 패널 ── -->
+<div class="upload-panel">
+  <div class="upload-toggle" id="uploadToggle" onclick="toggleUpload()">
+    <span class="arrow">▶</span>
+    <span>📋 데이터 업데이트 (구글시트에서 붙여넣기)</span>
+    <span style="margin-left:auto;font-size:11px;color:#94A3B8;">클릭해서 열기</span>
+  </div>
+  <div class="upload-body" id="uploadBody">
+    <div class="upload-desc">
+      구글시트 또는 엑셀 파일을 아래에 올리면 대시보드가 자동으로 갱신됩니다.<br>
+      <b>구글시트 사용자:</b> 파일 → 다운로드 → 웹페이지(.html, 현재 시트)<br>
+      <b>엑셀 사용자:</b> .xlsx 파일을 그대로 올리기
+    </div>
+    <div class="quarter-select-row">
+      <label>분기 선택:</label>
+      <select id="quarterSelect">
+        <option value="Q1">2026년 1분기</option>
+        <option value="Q2">2026년 2분기</option>
+        <option value="Q3">2026년 3분기</option>
+        <option value="Q4">2026년 4분기</option>
+      </select>
+    </div>
+    <div id="dropZone" onclick="document.getElementById('anyFile').click()"
+      style="border:2px dashed #CBD5E1;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:#FAFBFD;">
+      <div style="font-size:32px;margin-bottom:8px">📂</div>
+      <div style="font-size:13px;font-weight:600;color:#1B3A6B">HTML 또는 xlsx 파일을 클릭하거나 드래그해서 올려주세요</div>
+      <div style="font-size:11px;color:#94A3B8;margin-top:6px">
+        🟢 구글시트 → 다운로드 → 웹페이지(.html) &nbsp;|&nbsp; 🔵 엑셀 → .xlsx 그대로
+      </div>
+      <input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">
+    </div>
+    <div class="upload-actions" style="margin-top:10px">
+      <button class="btn-secondary" onclick="loadSampleData()">📋 기본 데이터로 보기 (1분기)</button>
+    </div>
+    <div class="upload-status" id="uploadStatus"></div>
+    <div class="upload-help">
+      💡 <b>구글시트 순서:</b> 해당 분기 탭 클릭 → 파일 → 다운로드 → 웹페이지(.html, 현재 시트) → 위에 올리기
+    </div>
+  </div>
+</div>
+
+<!-- ── AI 총평 패널 ── -->
+<div id="aiSummaryPanel" style="display:none;background:linear-gradient(135deg,#EFF6FF,#F0FDF4);border-bottom:1px solid #DBEAFE;padding:16px 32px;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">
+    <div style="flex:1;">
+      <div style="font-size:11px;font-weight:700;color:#1B3A6B;letter-spacing:.5px;margin-bottom:8px;">✨ AI 분기 총평</div>
+      <div id="aiSummaryText" style="font-size:13px;color:#1E293B;line-height:1.8;white-space:pre-wrap;"></div>
+    </div>
+    <button onclick="document.getElementById('aiSummaryPanel').style.display='none'" style="background:none;border:none;color:#94A3B8;cursor:pointer;font-size:18px;flex-shrink:0;padding:0;">✕</button>
+  </div>
+</div>
+
+<!-- ── 탭 ── -->
+<div class="tabs" style="justify-content:space-between;align-items:center;">
+  <div style="display:flex;">
+    <div class="tab active" onclick="showTab('overview')">📋 종합현황</div>
+    <div class="tab" onclick="showTab('safety')">🛡 환자안전</div>
+    <div class="tab" onclick="showTab('clinical')">🏥 진료영역</div>
+    <div class="tab" onclick="showTab('admin')">⚙️ 관리영역</div>
+    <div class="tab" onclick="showTab('trend')">📈 추이분석</div>
+    <div class="tab" onclick="showTab('cert')">📄 인증용 상세</div>
+  </div>
+  <div style="display:flex;gap:8px;padding-right:16px;">
+    <button onclick="printDashboard()" style="background:#F1F5F9;border:1px solid #E2E8F0;color:#475569;border-radius:7px;padding:6px 14px;font-size:12px;cursor:pointer;font-family:inherit;white-space:nowrap;">🖨️ 출력/PDF</button>
+  </div>
+</div>
+
+<!-- ── 컨텐츠 ── -->
+<div class="content">
+
+  <!-- 종합현황 -->
+  <div class="pane active" id="pane-overview">
+    <div class="summary">
+      <div class="card total"><div class="val" id="ov-total">—</div><div class="lbl">전체 지표</div></div>
+      <div class="card ok"><div class="val" id="ov-ok">—</div><div class="lbl">달성</div><div class="sub-lbl">목표 달성</div></div>
+      <div class="card ng"><div class="val" id="ov-ng">—</div><div class="lbl">미달</div><div class="sub-lbl">개선 필요</div></div>
+      <div class="card rate">
+        <div class="val" id="ov-rate">—</div>
+        <div class="lbl">달성률</div>
+        <div class="rate-bar"><div class="rate-bar-fill" id="ov-bar" style="width:0%"></div></div>
+      </div>
+    </div>
+    <div class="area-grid" id="areaGrid"></div>
+    <div id="overview-tables"></div>
+  </div>
+
+  <!-- 환자안전 -->
+  <div class="pane" id="pane-safety">
+    <div id="safety-content"></div>
+  </div>
+
+  <!-- 진료영역 -->
+  <div class="pane" id="pane-clinical">
+    <div id="clinical-content"></div>
+  </div>
+
+  <!-- 관리영역 -->
+  <div class="pane" id="pane-admin">
+    <div id="admin-content"></div>
+  </div>
+
+  <!-- 추이분석 -->
+  <div class="pane" id="pane-trend">
+    <div id="trend-content"></div>
+  </div>
+
+  <!-- 인증용 상세 -->
+  <div class="pane" id="pane-cert">
+    <div class="print-bar">
+      <button class="btn-print" onclick="printCert()">🖨️ 인쇄 / PDF 저장</button>
+    </div>
+    <div class="section">
+      <div class="section-header">
+        <span class="dot" style="background:#1B3A6B"></span>
+        인증조사 대비 — 지표 상세 정의표
+        <span style="margin-left:auto;font-size:11px;font-weight:400;color:#94A3B8">분자·분모 정의 및 개선활동 포함</span>
+      </div>
+      <div class="cert-table-wrap">
+        <table class="cert-table" id="cert-table">
+          <thead>
+            <tr>
+              <th style="width:28px">No.</th>
+              <th style="width:70px">지표번호</th>
+              <th style="width:80px">부서</th>
+              <th style="width:130px">지표명</th>
+              <th style="width:180px">지표정의</th>
+              <th style="width:120px">분자 정의</th>
+              <th style="width:120px">분모 정의</th>
+              <th style="width:36px">단위</th>
+              <th style="width:60px">분기결과</th>
+              <th style="width:44px">달성</th>
+              <th style="width:200px">개선활동 내용</th>
+            </tr>
+          </thead>
+          <tbody id="cert-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── 상세 모달 ── -->
+<div class="modal-overlay" id="modalOverlay" onclick="closeModal(event)">
+  <div class="modal" id="modal">
+    <h3 id="modal-name"></h3>
+    <div class="modal-num" id="modal-num"></div>
+    <div class="modal-row">
+      <div class="modal-stat"><div class="ms-lbl">분기 결과</div><div class="ms-val" id="modal-result"></div></div>
+      <div class="modal-stat"><div class="ms-lbl">달성여부</div><div class="ms-val" id="modal-status"></div></div>
+      <div class="modal-stat"><div class="ms-lbl">부서</div><div class="ms-val" id="modal-dept" style="font-size:13px"></div></div>
+      <div class="modal-stat"><div class="ms-lbl">영역</div><div class="ms-val" id="modal-area" style="font-size:13px"></div></div>
+    </div>
+    <div class="modal-trend" id="modal-monthly"></div>
+    <div class="modal-section"><label>지표 정의</label><p id="modal-def"></p></div>
+    <div class="modal-section"><label>분자</label><p id="modal-num-def"></p></div>
+    <div class="modal-section"><label>분모</label><p id="modal-den-def"></p></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:14px">
+      <div class="modal-stat"><div class="ms-lbl">2023년</div><div class="ms-val" id="modal-y23" style="font-size:13px"></div></div>
+      <div class="modal-stat"><div class="ms-lbl">2024년</div><div class="ms-val" id="modal-y24" style="font-size:13px"></div></div>
+      <div class="modal-stat"><div class="ms-lbl">2025년</div><div class="ms-val" id="modal-y25" style="font-size:13px"></div></div>
+    </div>
+    <button class="modal-close" onclick="document.getElementById('modalOverlay').classList.remove('show')">닫기</button>
+  </div>
+</div>
+
+<script>
+// ── 내장 1분기 기본 데이터 ──
+const DEFAULT_Q1 = [{"seq":1,"ind_num":"13.1.1","dept":"QPS실","manager":"기규정","name":"환자 확인율","definition":"환자 확인 시행시점의 환자 확인을 관찰한 건수 중에서 두 가지 이상의 환자정보(지표)를 이용하여 환자 확인을 시행한 건수의 비율","numerator":"두 가지 이상의 환자정보(지표)를 이용하여 환자 확인을 시행한 건수","denominator":"환자 확인 시행 시점의 환자 확인 총 관찰 건수","area":"환자안전","improvement":"1. 정확한 환자확인 여부 정기 모니터링 실시2. 모니터링 결과 부서 공유 및 미흡 사례 실천 딱지로 즉시 피드백3. 저조 부서 대상 환자안전지킴이를 통한 성적표 제공4. 환자확인 중요성 및 실천 독려 활동 병행","mgmt_plan":"1. 정확한 환자확인 모니터링 실시2. 환자확인율 결과 공유 및 부서 홍보 활동","y23":"94.8","y24":"93.1","y25":"91.7","m1_n":"359","m1_d":"400","m1_r":"89.8","m2_n":"374","m2_d":"400","m2_r":"93.5","m3_n":"372","m3_d":"400","m3_r":"93.0","unit":"%","result":"92.1","achieved":true,"failed":false},{"seq":2,"ind_num":"13.1.2","dept":"QPS실","manager":"권정아","name":"구두처방 후 24시간 이내 의사 처방 완수율","definition":"구두처방이 허용되는 상황*에서 구두처방 후 24시간 이내에 의사 처방을 환수한 건수**의 비율*구두처방이 허용되는 상황: '응급상황 및 수술/시술 중 등'과 같이 처방이 제한된 상황**처방을 완수한 건수: 의사가 처방을 작성하거나 전산에 입력한 건수","numerator":"구두처방 후 24시간 이내에 의사 처방을 완수한 건수","denominator":"구두처방이 허용되는 상황데서 총 구두처방 건수","area":"환자안전","improvement":"1. 구두처방 발생 후 24시간 이내 처방 완료 여부 상시 모니터링 및 누락 제로화 유지.2. 미준수 사례 발생 시 해당 부서 즉시 피드백 및 원인 분석을 통한 재발 방지 교육","mgmt_plan":"","y23":"100","y24":"100","y25":"96.3","m1_n":"7","m1_d":"8","m1_r":"87.50","m2_n":"5","m2_d":"5","m2_r":"100.00","m3_n":"6","m3_d":"6","m3_r":"100.00","unit":"%","result":"95.83","achieved":true,"failed":false},{"seq":3,"ind_num":"13.1.3","dept":"수술실","manager":"이영은","name":"수술 전 Time out 시행률","definition":"수술실에서 마취 유도 전 Time out을 시행한 건수의 비율","numerator":"마취 유도 전 Time out을 시행한 건수","denominator":"마취 유도 전 Time out을 시행해야 하는 총 수술건수","area":"환자안전","improvement":"정확하고 안전한 환자확인에 이루어질 수 있게 의료진 탈의실, 스크럽스테이션에 타임아웃에 관한 포스터를 부착한다. 전체모임시 타임아웃의 중요성에 대해 상기시킨다.","mgmt_plan":"신입직원 환자안전 교육실시, 환자의 수술표시가 잘 못 표시 된 경우, 수술부위가 다기관인 경우 수술부위에 정확한 표기를 하도록 한다. 환지와의 직접적인 확인이 어려운 경우 전산차트와 팔찌등으로 확인한다.","y23":"97.4","y24":"97.2","y25":"97.7","m1_n":"413","m1_d":"422","m1_r":"97.87","m2_n":"329","m2_d":"334","m2_r":"98.50","m3_n":"438","m3_d":"443","m3_r":"98.87","unit":"%","result":"98.41","achieved":true,"failed":false},{"seq":4,"ind_num":"13.1.4","dept":"QPS실","manager":"기규정","name":"낙상발생 보고률[1,000재원일당]","definition":"1,000재원일당 낙상 발생 보고 건수의 비율","numerator":"낙상 발생 보고 건수 *동일 환자에게 발생한 낙상은 발생 시마다 포함","denominator":"총 재원 일수(분기별 일일 재원 환자 수를 모두 합한 수)","area":"환자안전","improvement":"1. 낙상사고 발생현광 분석 및 주요 위험요인 그룹웨어 및 챗 공유2. 집체교육 및 환자안전지킴이와 함께 부서 순회 교육과 홍보 진행3. 낙상예방관리 모니터링 시 실천 딱지를 활용한 현장 피드백 제공4. 도움 요청 미이행 사계 감소를 위해 도움 요청 안내 홍보물 추가 부착5. 도움벨 접근성 향상을 위해 위치 조정 및 야간 식별을 위한 야광 표시 부착6. 간호기록 프로토콜에 낙상고위험 환자 관리 내용 반영하여 인식 강화7. 병동 내 문턱주의 스티커 부착 등 환경 개선 활동 시행","mgmt_plan":"1. 낙상사고 발생현황 및 위험요인 지속 모니터링2. 낙상예방관리 교육 및 홍보 정기 시행3. 도움 요청 실천 중심 예방활동 지속 강화4. 위험환경 점검 및 개선5. 낙상고위험 환자 관리 프로토콜 준수 점검 및 피드백 운영","y23":"2.01","y24":"2.00","y25":"1.71","m1_n":"21","m1_d":"12160","m1_r":"1.73","m2_n":"23","m2_d":"9972","m2_r":"2.31","m3_n":"19","m3_d":"11127","m3_r":"1.71","unit":"‰","result":"1.91","achieved":false,"failed":true},{"seq":5,"ind_num":"13.1.5","dept":"감염관리실","manager":"반유경","name":"손위생 수행률","definition":"손위생 수행시점*에 손위생을 관찰한 건수 중에서 손위생을 수행한 건수의 비율*손위생 수행시점: ①환자 접촉 전 ②청결/무균 처치 전 ③체액/분비물에 노출된 위험이 있는 행위를 하고 난 후 ④환자 접촉 후 ⑤환자 주변 접촉 후","numerator":"손위생 수행 건수","denominator":"손위생 수행 시점의 손위생 총 관찰 건수","area":"환자안전","improvement":"1. 감염관리실 직원의 지속적인 손위생 모니터링2. 손위생 시점과 올바른 손위생 방법 교육3. 수행률이 낮은 부서에 피드백 및 모니터링 강화 활동","mgmt_plan":"지속적인 손위생 증진활동 유지","y23":"92.2","y24":"92.9","y25":"92.5","m1_n":"541","m1_d":"589","m1_r":"91.85","m2_n":"482","m2_d":"527","m2_r":"91.46","m3_n":"532","m3_d":"584","m3_r":"91.10","unit":"%","result":"91.47","achieved":true,"failed":false},{"seq":6,"ind_num":"13.1.6","dept":"QPS실","manager":"기규정","name":"욕창 발생 보고율[1,000재원일당]","definition":"1,000재원일당 욕창 발생 보고건수의 비율","numerator":"욕창 발생 보고 건수*동일 환자에게 발생한 욕창은 발생부위 및 발생 시마다 포함","denominator":"총 재원일수(분기별 일일 재원 환자 수를 모두 합한 수)","area":"환자안전","improvement":"1. 욕창 발생현황 정기 모니터링 및 결과 피드백 제공2. 욕창 발생 상위 1~3위 부서 결과 공유 및 예방 실천 내용 부서 홍보3. 환자안전지킴이와 함께 직원 대상 욕창예방 활동 안내 및 실천 독려4. 욕창 발생 최다 부서(ICU) 대상 맞춤형 대면 교육 실시5. ICU 간호사 대상 발생 원인 파악을 위한 해당 부서 인식도 조사 시행6. 욕창예방 보조도구 추가 도입 및 활용","mgmt_plan":"1. 욕창 발생현황 및 위험요인 지속 모니터링2. 욕창예방 실천 중심 교육 및 홍보 정기 시행3. 발생 상위 부서 대상 맞춤형 피드백 및 관리 강화4. 욕창예방 도구 활용 점검 및 추가 지원 지속5. 욕창고위험 환자 예방활동 수행 여부 점검 및 실천 관리 운영","y23":"1.57","y24":"1.94","y25":"1.86","m1_n":"43","m1_d":"12160","m1_r":"3.54","m2_n":"27","m2_d":"9972","m2_r":"2.71","m3_n":"29","m3_d":"11127","m3_r":"2.61","unit":"‰","result":"2.95","achieved":false,"failed":true},{"seq":7,"ind_num":"13.2.2","dept":"감염관리실","manager":"문지희","name":"중심정맥관 관련 혈류감염 발생률","definition":"1,000기구-명-일당 중심정맥관 삽입 후 혈류감염 발생 건수 * 혈류감염이 발생한 환자의 심장내부나 심장 부근 또는 큰 혈관 중의    하나에 2일을 초과하여 중심정맥관을 가지고 있었고, 감염일 또는 그     전날 중심정맥관을 가지고 있었던 경우","numerator":"-중심정맥관을 사용하는 환자의 혈류감염 발생 건수-동일한 환자에게서 발생하는 혈류 감염은 감염 시마다 각각 분자에 포함","denominator":"중심정맥관을 사용한 일일 재원환자수의 합","area":"진료영역","improvement":"1. 지속적인 중환자실 의료관련감염 발생 감시 활동2. 중심정맥관 관련 혈류감염 감소를 위한 십입 체크리스트 실시3. 중심정맥관 관련 혈류감염 감소를 위한 유지 및 관리 점검 체크리스트 실시4. 중심정맥관 관련 혈류감염 예방을 위한 중심정맥관 관리를 위한 교육실시","mgmt_plan":"지속적인 중심정맥관 관련 혈류감염 예방 활동 유지","y23":"1.25","y24":"0.54","y25":"0.42","m1_n":"0","m1_d":"451","m1_r":"0.00","m2_n":"0","m2_d":"390","m2_r":"0.00","m3_n":"0","m3_d":"414","m3_r":"0.00","unit":"‰","result":"0.00","achieved":true,"failed":false},{"seq":8,"ind_num":"13.2.2","dept":"감염관리실","manager":"문지희","name":"요로카테터 관련 요로감염 발생률","definition":"1,000기구-명-일당 요로카테터 삽입 후 요로감염 발생 건수 * 요로감염으로 진단을 받은 환자가 2일을 초과하여 요로카테터를 가지고    있었고, 감염일 또는 그 전날 요로카테터를 가지고 있었던 경우","numerator":"-요로카테터를 사용하는 환자의 요로감염 발생 건수-동일한 환자에게서 발생하는 요로 감염은 감염 시마다 각각 분자에 포함","denominator":"요로카테터를 사용한 일일 재원환자수의 합","area":"진료영역","improvement":"1. 지속적인 중환자실 의료관련감염 발생 감시 활동2. 요로카테터 관련 요로감염 예방을 위한 Bundle 지침 준수 모니터링 3. 요로카테터 관련 요로감염 예방을 위한 요로카테터 관리를 위한 교육","mgmt_plan":"지속적인 요로카테터 관련 요로감염  예방 활동 유지","y23":"0.99","y24":"0.81","y25":"0.26","m1_n":"0","m1_d":"704","m1_r":"0.00","m2_n":"1","m2_d":"626","m2_r":"1.60","m3_n":"1","m3_d":"618","m3_r":"1.62","unit":"‰","result":"1.07","achieved":true,"failed":false},{"seq":9,"ind_num":"13.2.3","dept":"외래","manager":"김채은","name":"외래환자의 통증평가 수행률","definition":"외래 신환 및 과초진 환자를 대상으로 통증 평가 도구를 사용하여 통증의 5요소(위치, 강도, 양상, 빈도, 기간)를 평가하고 기록한 비율","numerator":"통증평가도구(NRS, FPRSS, FLACC) 를 사용하여 아래 5가지 항목을 모두 기록한 건수","denominator":"표본(샘플링)으로 추출된 해당기간 내 외래 방문 신환 및 과초진 환자(분기별 100명)","area":"진료영역","improvement":"1. 1분기 현황 및 원인 분석진료과(OBGY) 작성 누락 (20건): EMR 내 통증평가 서식은 구축되어 있으나, 해당 진료과 의료진의 서식 미사용으로 인한 기록 누락 발생.데이터 집계 과정의 오류 (10건): 지표 정의서상 제외 대상자(가정의학과 예방접종 3건, 외과 응급실 경유 1건 등 총 10건)에 대한 분류가 추출 과정에서 누락되어, 평가 대상이 아닌 환자가 모수(분모)에 과다 산출됨이 확인됨.2. 2분기 개선활동 계획 및 실행 (Action Plan)[현장 협조 요청] 산부인과(OBGY) 의료진 면담: 외래 간호팀에서 해당 진료과를 직접 방문하여 통증평가 서식 사용법을 재안내함. 특히 10월 의료기관 인증평가 현장조사 대비 필수 항목임을 공유하고 적극적인 협조를 요청함 (실행 완료).[데이터 정합성 개선] 제외 대상 필터링 강화: 모니터링 과정에서 제외 기준(단순 접종, ER 경유 환자 등)을 명확히 적용하여 데이터 산출의 정확도를 제고하기로 함.[프로세스 교육] 외래 간호 인력 재교육: 특수 상황(단순 접종 등) 환자에 대한 통증평가 제외 기준을 공유하여, 불필요한 행정 소모를 방지하고 정확한 지표 관리가 이루어지도록 함.","mgmt_plan":"1. 지속적인 모니터링 강화2. 외래 간호 인력 대상 통증평가 예외/포함 기준 가이드라인 재교육3. EMR 통증평가 입력 프로세스 간소화 할 수 있도록 전산팀과 협의 진행","y23":"","y24":"","y25":"","m1_n":"","m1_d":"","m1_r":"","m2_n":"","m2_d":"","m2_r":"0.00","m3_n":"70","m3_d":"90","m3_r":"77.78","unit":"%","result":"77.78","achieved":false,"failed":true},{"seq":10,"ind_num":"13.2.4","dept":"8병동","manager":"강선미","name":"기준시간 내 정규 협의 진료 회신율","definition":"입원환자에게 정규 협의 진료가 의뢰된 건중 기준시간내에 협의진료 회신이 완료된 비율","numerator":"기준시간 내 협의진료 회신이 완료된 건수","denominator":"전체 정규 협의진료 의뢰건수","area":"진료영역","improvement":"1.협진 지연 원인 분석 후 개선요청2.신규의료진 및 간호사 대상 협진 프로세스 교육3.실시간 모니터링 운영","mgmt_plan":"지속적인 모니터링 강화","y23":"","y24":"","y25":"","m1_n":"2310","m1_d":"2312","m1_r":"99.91","m2_n":"1718","m2_d":"1720","m2_r":"99.88","m3_n":"2294","m3_d":"2297","m3_r":"99.87","unit":"%","result":"99.89","achieved":true,"failed":false},{"seq":11,"ind_num":"13.2.5","dept":"ER","manager":"박현주","name":"심정지 후 골든타임 내 심폐소생술 제공률","definition":"심정지 후 골든타임 내 심폐소생술 제공된 비율","numerator":"골든타임 내 심폐소생술 제공건수","denominator":"전체 발생건수","area":"진료영역","improvement":"","mgmt_plan":"","y23":"","y24":"","y25":"","m1_n":"","m1_d":"","m1_r":"","m2_n":"","m2_d":"","m2_r":"0.00","m3_n":"","m3_d":"","m3_r":"0.00","unit":"%","result":"0.00","achieved":false,"failed":true},{"seq":12,"ind_num":"13.2.6","dept":"진단검사의학팀","manager":"문가영","name":"혈액배양 오염율","definition":"혈액배양 전체 의뢰건수 중 오염균이 배양된 검수의 비율","numerator":"오염균 배양 건수","denominator":"혈액 배양 전체 의뢰건수","area":"진료영역","improvement":"1. 멸균 장갑 착용2. 채혈부위 헥시딘 소독 3. 채혈부위 헥시딘 소독한 부위 촉지 금지4. 담당자 채혈자 교육","mgmt_plan":"","y23":"1","y24":"0.77","y25":"0.45","m1_n":"3","m1_d":"689","m1_r":"0.44","m2_n":"3","m2_d":"614","m2_r":"0.49","m3_n":"1","m3_d":"616","m3_r":"0.16","unit":"%","result":"0.36","achieved":true,"failed":false},{"seq":13,"ind_num":"13.2.7","dept":"영상의학팀","manager":"정준호","name":"영상검사 TAT 충족률","definition":"영상검사 TAT 충족 비율","numerator":"TAT 충족 건수 : 정규 - 72시간","denominator":"전체 검사 건수","area":"진료영역","improvement":"1. 각 파트 판독 과장님 휴가 시 다른 과장님의 판독으로 공백을 최소화2. 불필요한 응급 판독 의뢰 자제 요청","mgmt_plan":"1.진료과 파트별로 분류하여 판독 2.불필요한 응급판독 의뢰 자제 요청","y23":"73","y24":"75","y25":"79","m1_n":"7937","m1_d":"6213","m1_r":"78.20","m2_n":"8290","m2_d":"6583","m2_r":"79.40","m3_n":"9726","m3_d":"7325","m3_r":"75.30","unit":"%","result":"77.63","achieved":false,"failed":true},{"seq":14,"ind_num":"13.2.8","dept":"병리과","manager":"홍영선","name":"검체 식별 오류 및 임상 정보 누락률","definition":"접수된 전체 검체 중 환자 정보나 검체 정보가 일치하지 않는 건수 및 병리 의사가 판독을 수행하는 데 필수적인 임상 기록(검체부위, 주증상, 수술 소견, 이전 병리 진단 등)이 누락된 건수의 비율","numerator":"검체 식별 오류 건수 + 임상정보 누락 건수","denominator":"전체 접수 검체 건수","area":"진료영역","improvement":"1. 분기별 통계 후 해당부서에 알림 & 협조 요청2. 전산 오더 발행 시 임상 기록 입력 방법 조사 & 수정 방안 모색","mgmt_plan":"1. 분기별 해당과 고지 & 협조 요청2. 전산 오더 발행 시스템 개선","y23":"","y24":"99.2","y25":"99.5","m1_n":"1","m1_d":"962","m1_r":"0.10","m2_n":"6","m2_d":"880","m2_r":"0.68","m3_n":"3","m3_d":"1516","m3_r":"0.20","unit":"%","result":"0.33","achieved":false,"failed":true},{"seq":15,"ind_num":"13.2.9","dept":"수술실 마취과","manager":"이은실","name":"마취 중 후 정상체온 유지 환자 비율","definition":"주술기 연속적 체온 감시 및 저체온 방지나 정상 체온 유지를 위한 치료법 적용","numerator":"정상체온 유지건수","denominator":"평가대상 마취건수","area":"진료영역","improvement":"1. 마취종료 전 가온기구 온도를 높여 36.0℃ 이상 확보2.회복실 인계 전 체온 필수 확인 : 마취-회복실 간호사 간 체온 수시 구두 인계 의무화3.지속적 체온 측정이 가능한 피부 체온 센서 도입","mgmt_plan":"1.가온 프로토콜 명문화2. 마취-회복실 간 'Double Check' 구두 인계3. 피부 체온 센서 상용화","y23":"미해당","y24":"미해당","y25":"미해당","m1_n":"266","m1_d":"266","m1_r":"100.00","m2_n":"205","m2_d":"205","m2_r":"100.00","m3_n":"286","m3_d":"287","m3_r":"99.65","unit":"%","result":"99.88","achieved":false,"failed":true},{"seq":16,"ind_num":"13.2.10","dept":"진단검사의학팀","manager":"양미영","name":"혈액폐기율","definition":"입고된 총 혈액 건수중 폐기 건수","numerator":"폐기된 혈액 건수","denominator":"입고된 전체 혈액 건수","area":"진료영역","improvement":"1.냉동고 도어에 \"취급주의, 충격금지\" 라벨링            2.수혈세트 연결시 백손상 예방을 위해 혈액 출고시 주의당부","mgmt_plan":"근무자 교체주기를 고려한 반복 교육 실시","y23":"0.04","y24":"0.09","y25":"0.19","m1_n":"2","m1_d":"220","m1_r":"0.91","m2_n":"0","m2_d":"309","m2_r":"0.00","m3_n":"1","m3_d":"300","m3_r":"0.33","unit":"%","result":"0.41","achieved":false,"failed":true},{"seq":17,"ind_num":"13.2.11","dept":"응급센터","manager":"강수연","name":"응급의료데이터(NEDIS)기록의 신뢰도 향상","definition":"응급실 내원환자의 NEDIS기록의 정확도","numerator":"표본으로 추출된 환자 중, 의무기록(차트) 내용과 NEDIS 전송 내역이 완전히 일치하는 환자 수","denominator":"해당 기간 응급실 내원 환자 중 표본으로 무작위 추출된 환자 수 (월 100건, 분기 300건 추출)","area":"진료영역","improvement":"[원인]1. 응급실 멤버 충원을 위한 외부 경력 간호사 증원에 따른 입력시스템 숙련도 차이로 인한 기록 수정사항 발생.2. 기존 멤버의 NEDIS입력 지침 이해도 미숙으로 수정사항 발생.[개선활동]1. 주로 틀리는 부분 캡쳐 및 카톡에 내용 공유, 정정부분 표시 및 정정내용 기재2. 응급실 내원환자 기록을 처음 하는 직원의 틀린 부분 개별 수정안내3. NEDIS입력지침서 비치","mgmt_plan":"주로 틀리는 부분 캡쳐 및 카톡에 내용 공유, 틀린부분 표시 및 정정내용 기재","y23":"전년도 결과 없음","y24":"전년도 결과 없음","y25":"전년도 결과 없음","m1_n":"60","m1_d":"100","m1_r":"60.00","m2_n":"45","m2_d":"100","m2_r":"45.00","m3_n":"46","m3_d":"100","m3_r":"46.00","unit":"%","result":"50.33","achieved":false,"failed":true},{"seq":18,"ind_num":"13.2.13","dept":"QPS실","manager":"권정아","name":"예기치 못한 환자 사망에 대한 검토 비율","definition":"입원 후 48시간 이내 발생한 예기치 못한 사망 사례 중,  사례 검토를 한 비율","numerator":"48시간 이내 발생한 예기치 못한 사망 건","denominator":"해당 기간 내 발생한 입원 48시간 이내 예기치 못한 사망 사례 총 건수","area":"진료영역","improvement":"1. 상시 모니터링 체계 가동 2. 예기치 못한 사망 발생 시 즉각 대응(사례 검토)[1분기 모니터링 내용]월별 분자/분모 산출 내역 1분기 동안 입원 48시간 이내에 사망한 환자는 총 14명이었으나, 전원 차트 리뷰 결과 모두 제외조건(DNR, 말기질환, DOA, 회복불가 전원 등)에 해당하여 실제 지표 산출 대상(분모)은 '0건'입니다.","mgmt_plan":"","y23":"0","y24":"0","y25":"0","m1_n":"0","m1_d":"0","m1_r":"0.00","m2_n":"0","m2_d":"0","m2_r":"0.00","m3_n":"0","m3_d":"0","m3_r":"0.00","unit":"%","result":"0.00","achieved":true,"failed":false},{"seq":19,"ind_num":"13.2.14","dept":"약제팀","manager":"이귀향","name":"조제오류율","definition":"총 조제건수 중 조제오류건수 비율","numerator":"조제오류건수","denominator":"총 조제건수","area":"진료영역","improvement":"1 약품특성에 따라 별첨약으로 챙기는 약의 경우 봉투상단에 약품명이 출력되도록 전산등록 2. 철저한 이중검수 3. 약품명과 용량을 끝까지 확인","mgmt_plan":"1. 철저한 이중검수 2. 조제 검수 원칙을 철저히 준수","y23":"","y24":"","y25":"","m1_n":"4","m1_d":"24916","m1_r":"0.0161","m2_n":"3","m2_d":"21015","m2_r":"0.0143","m3_n":"3","m3_d":"24101","m3_r":"0.0124","unit":"%","result":"0.0143","achieved":true,"failed":false},{"seq":20,"ind_num":"13.2.15","dept":"의료정보팀","manager":"이가영","name":"전자동의서 최종저장 관리","definition":"전자동의서 총 작성건수에서 최종저장된 비율","numerator":"전자동의서 최종 저장 완료된 건수","denominator":"전자동의서 총 작성 건수","area":"진료영역","improvement":"1. GWS 통해 동의서 임시저장 건수를 공유2. 의료정보팀에서 전자동의서 임시저장건수 모니터링 관리","mgmt_plan":"월별 동의서 임사저장건을 공유 및 관리하여 2분기에도 최종저장율 100% 달성을 위해 지속적으로 활동할 계획임.","y23":"-","y24":"-","y25":"-","m1_n":"22232","m1_d":"22634","m1_r":"98.22","m2_n":"18781","m2_d":"19095","m2_r":"98.36","m3_n":"24649","m3_d":"24980","m3_r":"98.67","unit":"%","result":"98.42","achieved":false,"failed":true},{"seq":21,"ind_num":"13.3.1","dept":"원무팀","manager":"손재욱","name":"키오스크 사용율","definition":"전체 외래 접수, 수납 대상자 중, 원무 창구를 거치지 않고 키오스크를 통해 스스로 업무를 완결한 환자의 비율","numerator":"키오스크 통한 접수,수납","denominator":"전체 외래 접수, 수납","area":"관리영역","improvement":"1. 키오스크 장비 2대 추가 설치2. 진료과에서 수납시 키오스크로 안내3. 전체 직원대상 키오스크 사용 안내4. 원무 데스크 키오스크 사용 안내판 설치","mgmt_plan":"","y23":"","y24":"","y25":"19.3","m1_n":"5415","m1_d":"23635","m1_r":"22.91","m2_n":"4448","m2_d":"19866","m2_r":"22.39","m3_n":"6373","m3_d":"24225","m3_r":"26.31","unit":"%","result":"23.87","achieved":false,"failed":true},{"seq":22,"ind_num":"13.3.2","dept":"재무팀","manager":"김규년","name":"의료수익 대비 재료 비율","definition":"의료수익중 환자에게 사용된 직접재료비가 차지하는비율","numerator":"재료비(약품비+진료재료비+급식재료비","denominator":"의료수익(외래수익+입원수익+기타의료수익)","area":"관리영역","improvement":"","mgmt_plan":"","y23":"23.8","y24":"22.9","y25":"23.7","m1_n":"2772998786","m1_d":"11461133570","m1_r":"24.19","m2_n":"2360960747","m2_d":"9482304096","m2_r":"24.90","m3_n":"2845653628","m3_d":"4738129596","m3_r":"60.06","unit":"%","result":"36.38","achieved":false,"failed":true},{"seq":23,"ind_num":"13.3.3-1","dept":"간호부","manager":"김혜선","name":"3년 이상 경력 간호사 비율","definition":"전체 간호사의 경력별 가중치를 반영한 통합병동 경력 간호사의 비율","numerator":"전체 간호사의 경력별 가중치를 적용한 통합병동 근무일수","denominator":"전체 간호사의 통합병동 근무일수","area":"관리영역","improvement":"1. 적정간호인력배치, 근무시간*휴게시간 보장, 업무분담조정, 감정노동 스트레스 관리 상담서비스 제공 2. 프리셉터, 교육간호사, 부서장 멘토링 3. 급여인상(매년 정기인상), 인센티브제공, 유연근무제, 휴가제도, 육아지원정책 반영 4. 정기적인 교육과 훈련기회, 교육비 제공","mgmt_plan":"1. 직원격려 프로그램의 정례화 2. 급여 및 인센티브 제도의 지속 운영 3. 신입간호사 12주 프로그램 상시 운영 4. 전문교육 지원체계 강화 5. 소통활성화 및 조직문화개선 6. 휴가및 근무환경의 유연성 강화 7. 육아지원정책의 안정적 운영 8. 부서 내 갈등관리 체계 강화 9. 팀간호 운영의 지속관리","y23":"-","y24":"47.3","y25":"104.3","m1_n":"5802.48","m1_d":"5397.6","m1_r":"107.50","m2_n":"5812","m2_d":"5375.4","m2_r":"108.12","m3_n":"5195.04","m3_d":"4863.2","m3_r":"106.82","unit":"%","result":"107.48","achieved":true,"failed":false},{"seq":24,"ind_num":"13.3.3-2","dept":"인사총무팀","manager":"박남수","name":"직원이직율","definition":"","numerator":"","denominator":"","area":"미분류","improvement":"","mgmt_plan":"","y23":"","y24":"","y25":"","m1_n":"","m1_d":"","m1_r":"","m2_n":"","m2_d":"","m2_r":"0.00","m3_n":"","m3_d":"","m3_r":"0.00","unit":"%","result":"0.00","achieved":false,"failed":false},{"seq":25,"ind_num":"13.3.4","dept":"인사총무팀","manager":"김도희","name":"외부교육 결과보고 제출률","definition":"외부교육 결과보고서를 제출한 비율","numerator":"외부교육 출장 대상자 중 교육보고서를 제출한 대상자 수","denominator":"외부교육 출장 대상자 수","area":"관리영역","improvement":"","mgmt_plan":"","y23":"","y24":"","y25":"","m1_n":"","m1_d":"","m1_r":"","m2_n":"","m2_d":"","m2_r":"0.00","m3_n":"","m3_d":"","m3_r":"0.00","unit":"%","result":"0.00","achieved":false,"failed":true},{"seq":26,"ind_num":"13.3.5-1","dept":"보건","manager":"김옥주","name":"고위험군 추적관리 이행율","definition":"고위험군으로 분류된 직원 중,계획된 추적관리(상담, 모니터링,교육 등)를 이행한 대상자의 비율","numerator":"당월 추적관리 이행자 수","denominator":"당월 추적관리 대상자 수","area":"관리영역","improvement":"1. 1분기 건강검진 결과 뇌심혈관위험군 20% 인 야간작업자 및 가족력 보유자 우선관리 2. 맞춤형 일대일 사후관리 상담지속3. 심층 건강진단 이행률 제고  4. 비대면 건강관리 소통 강화","mgmt_plan":"1. 고위험군 맞춤형 모니터링 강화 2. 심층 건강진단 참여 확대 및이행 관리3. 유해인자 및 가족력 기반 예방교육 4. 보건관리 피드백 시스템 고도화","y23":"","y24":"","y25":"","m1_n":"14","m1_d":"16","m1_r":"87.50","m2_n":"19","m2_d":"20","m2_r":"95.00","m3_n":"18","m3_d":"19","m3_r":"94.74","unit":"%","result":"92.41","achieved":false,"failed":false},{"seq":27,"ind_num":"13.3.5-2","dept":"안전","manager":"박찬영","name":"직원 안전사고 발생률","definition":"전체 직원에게서 발생하는 안전 사고 발생 건수의 비율","numerator":"전체 직원 수","denominator":"직원 안전사고 발생 건수","area":"관리영역","improvement":"","mgmt_plan":"","y23":"","y24":"","y25":"","m1_n":"","m1_d":"","m1_r":"","m2_n":"","m2_d":"","m2_r":"","m3_n":"","m3_d":"","m3_r":"","unit":"","result":"","achieved":false,"failed":false},{"seq":28,"ind_num":"13.3.5-3","dept":"감염관리실","manager":"반유경","name":"근무 중직원의 체액 및 혈액노출사고 발생률","definition":"직원 100명당 근무 중 체액 및 혈액 노출사고 발생률","numerator":"체액 및 혈액 노출 사고 건수(주사침 자상사고, 점막노출 사고, 물림 사고)","denominator":"전 직원 수","area":"관리영역","improvement":"1. 지속적인 직원의 체액 및 혈액 노출 사고 감시 활동2. 체액 및 혈액 노출 사고 예방법 교육3. 노출사고 발생 직원과 원인 분석 및 재발 방지 활동 지속","mgmt_plan":"","y23":"0.33","y24":"0.36","y25":"0.25","m1_n":"3","m1_d":"1035","m1_r":"0.29","m2_n":"0","m2_d":"1026","m2_r":"0.00","m3_n":"3","m3_d":"1043","m3_r":"0.29","unit":"%","result":"0.19","achieved":true,"failed":false},{"seq":29,"ind_num":"13.3.6","dept":"기획홍보팀","manager":"유정화","name":"입원·외래 환자 만족도","definition":"입원·외래 환자 만족도","numerator":"응답자별 점수의 합","denominator":"응답자수","area":"관리영역","improvement":"","mgmt_plan":"","y23":"","y24":"","y25":"","m1_n":"","m1_d":"","m1_r":"","m2_n":"","m2_d":"","m2_r":"0.00","m3_n":"","m3_d":"","m3_r":"0.00","unit":"점","result":"0.00","achieved":false,"failed":true},{"seq":30,"ind_num":"13.4.1","dept":"혈관센터","manager":"신수현","name":"Door-to-Balloon 시간","definition":"급성 심근경색(STEMI, ST절 상승 심근경색) 환자가 응급실에 도착(Door)하여, 관상동맥 중재술(PCI)을 통해 가느다란 풍선 카테터로 막힌 혈관을 확장(Ballooning)하기까지 소요된 총 시간","numerator":"분모에 해당하는 환자 중, 병원 도착 후 90분 이내에 풍선확장술(또는 스텐트 삽입 등)을 완료한 환자 수","denominator":"해당 기간 내 응급실을 통해 내원하여 일차적 관상동맥 중재술(Primary PCI)을 받은 STEMI(ST절 상승 심근경색) 환자 수","area":"진료영역","improvement":"[원인분석(RCA) 및 개선활동]■ 환자별 타임라인 지연 분석1. 김복곤(95분): 전문의 호출(20분) 및 ER 도착(48분) 구간 지연 확인2. 박영진(183분): 전문의 ER 도착(146분) 구간에서 심각한 지연 발생■ 주요 원인분석- 응급실 내원 초기 Noti 지연 및 전문의 타 업무로 인한 도착 지연이 주원인임.1.환자 도착부터 풍선 확장까지 각 단계별 시간을 실시간으로 기록하고 피드백하는 전산 대시보드 구축.2.호출 후 시술팀원이 병원에 도착했음을 알리는 체크인 시스템을 간소화하여 불필요한 대기 시간 단축.3.흉부 X-ray나 정밀 혈액 검사 결과를 기다리느라 시술실 이동을 늦추는 행위 금지 (심전도와 증상만으로 즉시 판단).4.보호자에게 설명하는 시간을 줄이기 위해 시각 자료가 포함된 간이 동의서 활용.","mgmt_plan":"통합 데이터 모니터링과 부서별 성과 공유를 통해 D2B 90분 이내 달성률을 90% 이상으로 지속 유지할 계획임.","y23":"","y24":"","y25":"","m1_n":"8","m1_d":"8","m1_r":"100.00","m2_n":"5","m2_d":"7","m2_r":"71.43","m3_n":"14","m3_d":"14","m3_r":"100.00","unit":"%","result":"90.48","achieved":true,"failed":false},{"seq":31,"ind_num":"13.4.2","dept":"원무심사팀","manager":"이주영","name":"수술실 고가재료 처방 수정요청율","definition":"수술 종료 후 청구된 고가재료의 처방 내역 중, 실제 사용량과 일치하지않거나 누락/착오 입력되어 수정 요청을 받은 건수의 비율","numerator":"고가재료 처방 수정 요청이 발생한 수술 건수","denominator":"월간 고가재료가 사용된 전체 수술 건수","area":"관리영역","improvement":"1.모니터링: 수술실과 협력하여 주간/월간 수정 요청 사례 공유 및 오류 빈도가 높은 재료 집중 관리2.피드백: 수정 요청 발생 시 해당 수술팀에 즉각 피드백하여 동일 사례 재발 방지","mgmt_plan":"1.심층 원인 분석: 1분기 지수 정체 원인 파악을 위해 오류 발생 빈도가 높은 사유 집중 모니터링 실시 2.피드백: 오류 발생 빈도 높은 부분 수술실과 실시간 피드백 하여 동일 사례 재발 방지","y23":"X","y24":"X","y25":"X","m1_n":"38","m1_d":"511","m1_r":"7.44","m2_n":"39","m2_d":"401","m2_r":"9.73","m3_n":"37","m3_d":"532","m3_r":"6.95","unit":"%","result":"8.04","achieved":false,"failed":true},{"seq":32,"ind_num":"13.4.3","dept":"진료협력센터","manager":"김숙진","name":"병상 당 회송 건수(비율)","definition":"병상 당 회송건수는 병상수 대비 입원,외래 진료가 이루어진 건강보험화낮 중 회송 관리료 청구 건수(비율)","numerator":"회송료 청구 건수","denominator":"병상수","area":"외부평가","improvement":"","mgmt_plan":"1. 진료협력센터 전담인력 추가 보층예정2.관련부서 업무 협조요청(진료부, 간호부)3. 입원 및 외래회송 사업 홍보","y23":"X","y24":"X","y25":"0.1","m1_n":"54","m1_d":"407","m1_r":"0.13","m2_n":"53","m2_d":"407","m2_r":"0.13","m3_n":"47","m3_d":"407","m3_r":"0.12","unit":"건(비율)","result":"0.13","achieved":true,"failed":false},{"seq":33,"ind_num":"13.4.4","dept":"재활치료팀","manager":"최임락","name":"도수치료 이용 부도율","definition":"전체 외래 도수 예약 환자 수 중에 부도를 낸 환자의 비율(백분율)","numerator":"예약 부도를 낸 환자수","denominator":"도수치료 예약을 한 전체 환자","area":"관리영역","improvement":"1. 당일변경 보다는 최소 하루전 예약변경 유도2. 반복적인 부도 환자에게 치료실 내원시 재활 운동의 점진적 중요성 안내3. 담당 치료사 휴가시 스케줄 조정 또는 타 치료사 예약4. 무단 결석이 잦은 환자에게 사전 예약 변경 연락하도록 안내5. 부도된 시간을 당일 처방원하는 외래환자 치료 실시","mgmt_plan":"1. 일일 통계 작성을 통한 부도사유 및 부도율 집계2. 외래 진료예약 문자와 혼돈하지 않도록 설명3. 외래 환자 시간표 작성 및 전달, 문자 안내4. 담당 치료사들의 의사소통","y23":"","y24":"6.1","y25":"6.6","m1_n":"32","m1_d":"617","m1_r":"5.19","m2_n":"42","m2_d":"586","m2_r":"7.17","m3_n":"40","m3_d":"699","m3_r":"5.72","unit":"%","result":"6.03","achieved":false,"failed":true},{"seq":34,"ind_num":"13.4.5","dept":"QPS실","manager":"강경주","name":"CP적용률","definition":"CP 적용 대상 수술을 시행하는 환자 중 실제 CP가 적용된 환자의 비율","numerator":"실제 CP를 적용한 환자 수","denominator":"CP 적용 대상 수술로 입원한 총 환자 수","area":"기타","improvement":"1.지표 대상 적용 추이 분석 및 단순 미사용 방지를 위한 제외 사유 입력 전산 제어 시스템 구축 및 의무화 추진2.부적합 데이터(소아, 중증 기저질환 등)의 선제적 필터링을 통한 지표 정합성 제고","mgmt_plan":"1.신규 지표(HWR)의 적용률 추이 분석 및 저조 사유 집중 관리2.분석 결과 공유를 통한 지표 신뢰도 및 표준화 제고","y23":"89.20","y24":"84.15","y25":"77.48","m1_n":"75","m1_d":"98","m1_r":"76.53","m2_n":"54","m2_d":"75","m2_r":"72.00","m3_n":"55","m3_d":"84","m3_r":"65.48","unit":"%","result":"71.34","achieved":false,"failed":true},{"seq":35,"ind_num":"13.4.5","dept":"QPS실","manager":"강경주","name":"CP완료율","definition":"CP 적용 환자 중 중도 탈락(Drop) 없이 표준 경로를 마치고 퇴원한 환자의 비율","numerator":"CP 표준 경로를 준수 및 완료(Drop 없음)하여 퇴원한 환자 수","denominator":"실제 CP가 적용된 환자 수","area":"기타","improvement":"1.다빈도 CP drop 사유(염증 수치 등) 대상 수술의 항생제 지침 적정성 검토 및 진료과 간담회를 통한 중단율 저감 대책 수립2.항생제 표준 처방 준수 여부의 지속적인 모니터링","mgmt_plan":"1.TKRA 중단율 개선을 위해 지침 적정성 검토 및 진료과 간담회 추진2.분석 결과 공유를 통한 지표 신뢰도 및 표준화 제고","y23":"73.00","y24":"65.63","y25":"62.60","m1_n":"53","m1_d":"75","m1_r":"70.67","m2_n":"32","m2_d":"54","m2_r":"59.26","m3_n":"46","m3_d":"55","m3_r":"83.64","unit":"%","result":"71.19","achieved":true,"failed":false}];
+
+let currentData = [];
+let currentQuarter = 'Q1';
+
+const AREA_CONFIG = {
+  '환자안전': { color:'#EF4444', fill:'#FEE2E2', label:'🛡 환자안전' },
+  '진료영역': { color:'#3B82F6', fill:'#DBEAFE', label:'🏥 진료영역' },
+  '관리영역': { color:'#8B5CF6', fill:'#EDE9FE', label:'⚙️ 관리영역' },
+  '외부평가': { color:'#F59E0B', fill:'#FEF3C7', label:'🏆 외부평가' },
+  '기타':     { color:'#6B7280', fill:'#F3F4F6', label:'📌 기타' },
+  '미분류':   { color:'#94A3B8', fill:'#F1F5F9', label:'— 미분류' },
+};
+
+const QUARTER_LABELS = {
+  Q1:'2026년 1분기', Q2:'2026년 2분기', Q3:'2026년 3분기', Q4:'2026년 4분기'
+};
+
+const MONTH_LABELS = {
+  Q1:['1월','2월','3월'], Q2:['4월','5월','6월'],
+  Q3:['7월','8월','9월'], Q4:['10월','11월','12월']
+};
+
+// ── 탭 전환 ──
+function showTab(name) {
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('pane-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ── 업로드 토글 ──
+function toggleUpload() {
+  const toggle = document.getElementById('uploadToggle');
+  const body   = document.getElementById('uploadBody');
+  toggle.classList.toggle('open');
+  body.classList.toggle('show');
+}
+
+// ── 기본 데이터 로드 ──
+function loadSampleData() {
+  currentData = DEFAULT_Q1;
+  currentQuarter = 'Q1';
+  document.getElementById('quarterSelect').value = 'Q1';
+  renderAll();
+  showStatus('✅ 1분기 기본 데이터가 로드되었습니다. (35개 지표)');
+}
+
+// ── HTML 파일 업로드 처리 (하위 호환용) ──
+function handleHtmlUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  parseHtmlFile(file);
+}
+
+// ── 통합 파일 업로드 진입점 ──
+function handleFileUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  routeFile(file);
+}
+
+function routeFile(file) {
+  const name = file.name.toLowerCase();
+  if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
+    parseXlsxFile(file);
+  } else if (name.endsWith('.html') || name.endsWith('.htm')) {
+    parseHtmlFile(file);
+  } else {
+    showStatus('⚠️ .html 또는 .xlsx 파일만 지원합니다.', true);
+  }
+}
+
+// 드래그앤드롭 (HTML + xlsx 공통)
+document.addEventListener('DOMContentLoaded', () => {
+  const zone = document.getElementById('dropZone');
+  if (!zone) return;
+  zone.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('dragover'); });
+  zone.addEventListener('dragleave', () => zone.classList.remove('dragover'));
+  zone.addEventListener('drop', e => {
+    e.preventDefault();
+    zone.classList.remove('dragover');
+    const file = e.dataTransfer.files[0];
+    if (file) routeFile(file);
+  });
+});
+
+// ── xlsx 파일 파싱 ──
+function parseXlsxFile(file) {
+  const quarter = document.getElementById('quarterSelect').value;
+  currentQuarter = quarter;
+  showStatus('📖 엑셀 파일 읽는 중...');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = new Uint8Array(e.target.result);
+      const wb = XLSX.read(data, { type: 'array' });
+
+      // 시트 선택: 분기명 포함 시트 우선, 없으면 첫 번째
+      const qMap = { Q1:['1분기','Q1'], Q2:['2분기','Q2'], Q3:['3분기','Q3'], Q4:['4분기','Q4'] };
+      const keywords = qMap[quarter] || [];
+      let sheetName = wb.SheetNames.find(n => keywords.some(k => n.includes(k)))
+                   || wb.SheetNames[0];
+
+      const ws = wb.Sheets[sheetName];
+      // header:1 → 모든 행을 배열로, defval:'' → 빈 셀도 빈 문자열
+      const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: '' });
+
+      if (!rows.length) { showStatus('⚠️ 시트가 비어 있습니다.', true); return; }
+
+      // 헤더 행 찾기 (지표번호 또는 지표명 포함)
+      let headerIdx = -1;
+      let headerRow = null;
+      for (let i = 0; i < Math.min(rows.length, 10); i++) {
+        const cells = rows[i].map(c => String(c).trim());
+        if (cells.some(c => c === '지표번호' || c === '지표명')) {
+          headerIdx = i;
+          headerRow = cells;
+          break;
+        }
+      }
+      if (!headerRow) { showStatus('⚠️ 헤더를 찾을 수 없습니다. (지표번호/지표명 열 필요)', true); return; }
+
+      const find = (...names) => {
+        for (const n of names) {
+          const i = headerRow.findIndex(h => String(h).includes(n));
+          if (i >= 0) return i;
+        }
+        return -1;
+      };
+
+      // 분기별 월 컬럼 키워드
+      const mKeys = {
+        Q1: [['1월_결과','1월결과'],['2월_결과','2월결과'],['3월_결과','3월결과']],
+        Q2: [['4월_결과','4월결과'],['5월_결과','5월결과'],['6월_결과','6월결과']],
+        Q3: [['7월_결과','7월결과'],['8월_결과','8월결과'],['9월_결과','9월결과']],
+        Q4: [['10월_결과','10월결과'],['11월_결과','11월결과'],['12월_결과','12월결과']],
+      };
+      const [mk1, mk2, mk3] = mKeys[quarter] || mKeys.Q1;
+
+      const cols = {
+        ind_num:    find('지표번호'),
+        dept:       find('부서명'),
+        manager:    find('담당자'),
+        name:       find('지표명'),
+        definition: find('지표정의'),
+        numerator:  find('분자'),
+        denominator:find('분모'),
+        area:       find('지표영역'),
+        improvement:find('개선활동_상세','개선활동'),
+        mgmt_plan:  find('지속적인 관리계획','관리계획'),
+        y23: find('23년'), y24: find('24년'), y25: find('25년'),
+        m1_r: find(...mk1),
+        m2_r: find(...mk2),
+        m3_r: find(...mk3),
+        m1_n: find('1월_분자','4월_분자','7월_분자','10월_분자'),
+        m1_d: find('1월_분모','4월_분모','7월_분모','10월_분모'),
+        m2_n: find('2월_분자','5월_분자','8월_분자','11월_분자'),
+        m2_d: find('2월_분모','5월_분모','8월_분모','11월_분모'),
+        m3_n: find('3월_분자','6월_분자','9월_분자','12월_분자'),
+        m3_d: find('3월_분모','6월_분모','9월_분모','12월_분모'),
+        unit:   find('단위'),
+        result: find('1분기_결과','2분기_결과','3분기_결과','4분기_결과','분기_결과'),
+        target: find('기준값','목표값','목표'),
+        achieved: find('1분기_달성','2분기_달성','3분기_달성','4분기_달성','분기_달성'),
+        failed:   find('1분기_미달','2분기_미달','3분기_미달','4분기_미달','분기_미달'),
+      };
+
+      const parsed = [];
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const row = rows[i];
+        const g = ci => (ci >= 0 && ci < row.length) ? String(row[ci]).trim() : '';
+
+        // 첫 번째 셀이 숫자(순번)인 행만 처리
+        const seq = g(0);
+        if (!seq || isNaN(parseInt(seq))) continue;
+
+        const name = g(cols.name);
+        if (!name || name === '지표명') continue;
+
+        let area = g(cols.area) || '미분류';
+        if (!area || area === '지표영역') area = '미분류';
+
+        // ── 달성/미달 자동 판정 ──
+        // 1순위: v 체크 열이 있으면 그대로 사용
+        // 2순위: 결과값으로 자동 판정
+        const rawAch = g(cols.achieved).toLowerCase();
+        const rawFail = g(cols.failed).toLowerCase();
+        let achieved = rawAch === 'v' || rawAch === 'y' || rawAch === '달성' || rawAch === 'o';
+        let failed   = rawFail === 'v' || rawFail === 'y' || rawFail === '미달' || rawFail === 'x';
+
+        // v체크가 없는 경우 → 결과값이 있으면 자동 판정 (달성도 아니고 미달도 아닌 → 미달로 표시)
+        if (!achieved && !failed) {
+          const result = g(cols.result);
+          if (result && result !== '' && !isNaN(parseFloat(result))) {
+            // 결과값이 있는데 판정이 없으면: 미입력 상태로 둠 (사용자가 판단)
+            // achieved=false, failed=false → "미입력" 표시
+          }
+        }
+
+        parsed.push({
+          seq: parsed.length + 1,
+          ind_num:     g(cols.ind_num),
+          dept:        g(cols.dept),
+          manager:     g(cols.manager),
+          name,
+          definition:  g(cols.definition),
+          numerator:   g(cols.numerator),
+          denominator: g(cols.denominator),
+          area,
+          improvement: g(cols.improvement),
+          mgmt_plan:   g(cols.mgmt_plan),
+          y23: g(cols.y23), y24: g(cols.y24), y25: g(cols.y25),
+          m1_n: g(cols.m1_n), m1_d: g(cols.m1_d), m1_r: g(cols.m1_r),
+          m2_n: g(cols.m2_n), m2_d: g(cols.m2_d), m2_r: g(cols.m2_r),
+          m3_n: g(cols.m3_n), m3_d: g(cols.m3_d), m3_r: g(cols.m3_r),
+          unit:   g(cols.unit),
+          result: g(cols.result),
+          achieved,
+          failed,
+        });
+      }
+
+      if (!parsed.length) { showStatus('⚠️ 지표 데이터를 찾지 못했습니다. 헤더명을 확인해주세요.', true); return; }
+
+      currentData = parsed;
+      renderAll();
+      updateDropZone(file.name, 'xlsx');
+      showStatus('✅ ' + QUARTER_LABELS[quarter] + ' 엑셀 데이터 ' + parsed.length + '개 지표 로드 완료! (시트: ' + sheetName + ')');
+
+    } catch(err) {
+      showStatus('⚠️ 엑셀 파일 읽기 오류: ' + err.message, true);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// 드롭존 성공 상태로 업데이트
+function updateDropZone(filename, type) {
+  const zone = document.getElementById('dropZone');
+  if (!zone) return;
+  const icon = type === 'xlsx' ? '📊' : '📄';
+  zone.innerHTML =
+    '<div style="font-size:20px;margin-bottom:6px">✅</div>' +
+    '<div style="font-size:13px;font-weight:600;color:#16A34A">' + icon + ' ' + filename + '</div>' +
+    '<div style="font-size:11px;color:#94A3B8;margin-top:4px">클릭해서 다른 파일 선택</div>' +
+    '<input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">';
+}
+
+function parseHtmlFile(file) {
+  const quarter = document.getElementById('quarterSelect').value;
+  currentQuarter = quarter;
+  showStatus('📖 파일 읽는 중...');
+
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const html = e.target.result;
+
+      // 테이블 파싱
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(html, 'text/html');
+      const rows = doc.querySelectorAll('tr');
+
+      if (!rows.length) { showStatus('⚠️ 테이블을 찾을 수 없습니다.', true); return; }
+
+      // 헤더행 찾기
+      let headerRow = null, headerIdx = -1;
+      rows.forEach((row, i) => {
+        const cells = [...row.querySelectorAll('td,th')].map(c => c.textContent.trim());
+        if (cells.some(c => c === '지표번호' || c === '지표명')) {
+          headerRow = cells; headerIdx = i;
+        }
+      });
+      if (!headerRow) { showStatus('⚠️ 헤더를 찾을 수 없습니다.', true); return; }
+
+      const find = (...names) => {
+        for (const n of names) {
+          const i = headerRow.findIndex(h => h.includes(n));
+          if (i >= 0) return i;
+        }
+        return -1;
+      };
+
+      const cols = {
+        ind_num: find('지표번호'), dept: find('부서명'), manager: find('담당자'),
+        name: find('지표명'), definition: find('지표정의'),
+        numerator: find('분자'), denominator: find('분모'), area: find('지표영역'),
+        improvement: find('개선활동_상세','개선활동'),
+        mgmt_plan: find('지속적인 관리계획','관리계획'),
+        y23: find('23년'), y24: find('24년'), y25: find('25년'),
+        m1_r: find('1월_결과','4월_결과','7월_결과','10월_결과'),
+        m2_r: find('2월_결과','5월_결과','8월_결과','11월_결과'),
+        m3_r: find('3월_결과','6월_결과','9월_결과','12월_결과'),
+        unit: find('단위'),
+        result: find('1분기_결과','2분기_결과','3분기_결과','4분기_결과','분기_결과'),
+        achieved: find('1분기_달성','2분기_달성','3분기_달성','4분기_달성','분기_달성'),
+        failed: find('1분기_미달','2분기_미달','3분기_미달','4분기_미달','분기_미달'),
+      };
+
+      const parsed = [];
+      for (let i = headerIdx + 1; i < rows.length; i++) {
+        const cells = [...rows[i].querySelectorAll('td,th')].map(c => c.textContent.trim());
+        if (!cells.length) continue;
+
+        const g = (ci) => (ci >= 0 && ci < cells.length) ? cells[ci] : '';
+        const num = g(0);
+        if (!num || isNaN(parseInt(num))) continue;
+
+        const name = g(cols.name);
+        if (!name || name === '지표명') continue;
+
+        let area = g(cols.area);
+        if (!area || area === '지표영역') area = '미분류';
+
+        const ach = g(cols.achieved).toLowerCase();
+        const fail = g(cols.failed).toLowerCase();
+
+        parsed.push({
+          seq: parsed.length + 1,
+          ind_num: g(cols.ind_num),
+          dept: g(cols.dept),
+          manager: g(cols.manager),
+          name,
+          definition: g(cols.definition),
+          numerator: g(cols.numerator),
+          denominator: g(cols.denominator),
+          area,
+          improvement: g(cols.improvement),
+          mgmt_plan: g(cols.mgmt_plan),
+          y23: g(cols.y23), y24: g(cols.y24), y25: g(cols.y25),
+          m1_r: g(cols.m1_r), m2_r: g(cols.m2_r), m3_r: g(cols.m3_r),
+          unit: g(cols.unit),
+          result: g(cols.result),
+          achieved: ach === 'v',
+          failed: fail === 'v',
+        });
+      }
+
+      if (!parsed.length) { showStatus('⚠️ 지표 데이터를 찾지 못했습니다.', true); return; }
+
+      currentData = parsed;
+      renderAll();
+      updateDropZone(file.name, 'html');
+      showStatus('✅ ' + QUARTER_LABELS[quarter] + ' 데이터 ' + parsed.length + '개 지표 로드 완료!');
+
+    } catch(err) {
+      showStatus('⚠️ 파일 읽기 오류: ' + err.message, true);
+    }
+  };
+  reader.readAsText(file, 'utf-8');
+}
+
+// ── 개선활동 AI 요약 (index로 데이터 참조) ──
+async function summarizeImprovement(idx) {
+  const wrap = document.getElementById('imp-wrap-' + idx);
+  if (!wrap) return;
+
+  const item = _certImpData[idx];
+  if (!item) return;
+
+  wrap.innerHTML = '<span style="color:#94A3B8;font-size:10px">⏳ 요약 중...</span>';
+
+  const prompt = [
+    '병원 QPS 지표 [' + item.name + ']의 개선활동 내용을 보고용으로 간결하게 요약해주세요.',
+    '',
+    '조건:',
+    '- 2~3문장 이내로 핵심만',
+    '- 번호 매기지 말고 자연스러운 문장으로',
+    '- "~함, ~실시, ~강화" 등 간결한 어미 사용',
+    '- 원인분석 내용은 제외하고 실제 개선활동 위주로',
+    '',
+    '개선활동 내용:',
+    item.imp
+  ].join('\n');
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const res = await response.json();
+    const summary = res.content?.map(c => c.text || '').join('') || '요약 실패';
+
+    wrap.innerHTML =
+      '<span style="color:#334155;font-size:11px;line-height:1.6">' + summary + '</span>'
+      + '<br><button onclick="summarizeImprovement(' + idx + ')" '
+      + 'style="margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;">'
+      + '↺ 재요약</button>';
+
+  } catch (err) {
+    wrap.innerHTML = '<span style="color:#DC2626;font-size:10px">⚠️ ' + err.message + '</span>'
+      + '<br><button onclick="summarizeImprovement(' + idx + ')" '
+      + 'style="margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;">'
+      + '↺ 다시 시도</button>';
+  }
+}
+
+
+
+// ── 인쇄 함수 ──
+function printDashboard() {
+  // 현재 활성 탭(.pane.active)이 그대로 인쇄됨
+  window.print();
+}
+
+function printCert() {
+  // 인증용 탭으로 이동 후 인쇄
+  showTabById('cert');
+  setTimeout(() => window.print(), 300);
+}
+
+function showTabById(name) {
+  document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  const pane = document.getElementById('pane-' + name);
+  if (pane) pane.classList.add('active');
+}
+
+// ── 모달 ──
+function openModal(seq) {
+  const d = currentData.find(x => x.seq === seq);
+  if (!d) return;
+  const mLabels = MONTH_LABELS[currentQuarter] || ['1월','2월','3월'];
+
+  document.getElementById('modal-name').textContent   = d.name;
+  document.getElementById('modal-num').textContent    = `${d.ind_num} · ${QUARTER_LABELS[currentQuarter] || currentQuarter}`;
+  document.getElementById('modal-result').textContent = d.result ? d.result + d.unit : '—';
+  document.getElementById('modal-status').innerHTML   = d.achieved ? '<span class="badge-ok">✓ 달성</span>' : d.failed ? '<span class="badge-ng">✗ 미달</span>' : '<span class="badge-na">— 미입력</span>';
+  document.getElementById('modal-dept').textContent   = d.dept;
+  document.getElementById('modal-area').textContent   = d.area;
+  document.getElementById('modal-def').textContent    = d.definition || '—';
+  document.getElementById('modal-num-def').textContent= d.numerator  || '—';
+  document.getElementById('modal-den-def').textContent= d.denominator|| '—';
+  document.getElementById('modal-y23').textContent    = d.y23 || '—';
+  document.getElementById('modal-y24').textContent    = d.y24 || '—';
+  document.getElementById('modal-y25').textContent    = d.y25 || '—';
+
+  const monthly = [
+    {label: mLabels[0], val: d.m1_r},
+    {label: mLabels[1], val: d.m2_r},
+    {label: mLabels[2], val: d.m3_r},
+  ];
+  document.getElementById('modal-monthly').innerHTML = monthly.map(m =>
+    `<div class="mt-item ${!m.val ? '' : ''}">
+      <div class="mt-lbl">${m.label}</div>
+      <div class="mt-val">${m.val || '—'}</div>
+    </div>`
+  ).join('');
+
+  document.getElementById('modalOverlay').classList.add('show');
+}
+
+function closeModal(e) {
+  if (e.target === document.getElementById('modalOverlay'))
+    document.getElementById('modalOverlay').classList.remove('show');
+}
+
+// ── AI 총평 생성 ──
+async function generateAISummary() {
+  if (!currentData || currentData.length === 0) {
+    alert('먼저 데이터를 로드해주세요.');
+    return;
+  }
+
+  const btn = document.getElementById('aiSummaryBtn');
+  const panel = document.getElementById('aiSummaryPanel');
+  const textEl = document.getElementById('aiSummaryText');
+
+  btn.textContent = '⏳ 생성 중...';
+  btn.disabled = true;
+  panel.style.display = 'block';
+  textEl.textContent = '분석 중입니다...';
+
+  const q = currentQuarter;
+  const qLabel = {'Q1':'1분기','Q2':'2분기','Q3':'3분기','Q4':'4분기'}[q] || q;
+  const total = currentData.length;
+  const ok = currentData.filter(d => d.achieved).length;
+  const ng = currentData.filter(d => d.failed).length;
+  const rate = Math.round(ok / total * 100);
+
+  // 영역별 현황
+  const areaStats = {};
+  currentData.forEach(d => {
+    const a = d.area || '미분류';
+    if (!areaStats[a]) areaStats[a] = {total:0, ok:0, ng:0, names:[]};
+    areaStats[a].total++;
+    if (d.achieved) areaStats[a].ok++;
+    if (d.failed) { areaStats[a].ng++; areaStats[a].names.push(d.name); }
+  });
+
+  // 미달 지표 목록
+  const ngList = currentData.filter(d => d.failed).map(d =>
+    `- ${d.name} (${d.dept}): ${d.result}${d.unit}`
+  ).join('\n');
+
+  // 달성 지표 목록
+  const okList = currentData.filter(d => d.achieved).map(d =>
+    `- ${d.name} (${d.dept}): ${d.result}${d.unit}`
+  ).join('\n');
+
+  // 미입력 지표
+  const naList = currentData.filter(d => !d.achieved && !d.failed && !d.result).map(d => d.name).join(', ');
+
+  const areaStatLines = Object.entries(areaStats).map(([a,s]) => '- ' + a + ': ' + s.total + '개 중 달성 ' + s.ok + '개, 미달 ' + s.ng + '개').join('\n');
+
+  const prompt = [
+    '당신은 병원 QPS(환자안전·질향상)팀의 전문 분석가입니다.',
+    '아래는 좋은삼선병원의 2026년 ' + qLabel + ' 지표 관리 결과입니다. 이를 바탕으로 리더십 보고용 총평을 작성해주세요.',
+    '',
+    '## 전체 현황',
+    '- 총 지표 수: ' + total + '개',
+    '- 달성: ' + ok + '개 / 미달: ' + ng + '개 / 미입력: ' + (total-ok-ng) + '개',
+    '- 전체 달성률: ' + rate + '%',
+    '',
+    '## 영역별 현황',
+    areaStatLines,
+    '',
+    '## 달성 지표 (' + ok + '개)',
+    okList || '없음',
+    '',
+    '## 미달 지표 (' + ng + '개)',
+    ngList || '없음',
+    naList ? '\n## 미입력 지표\n' + naList : '',
+    '',
+    '## 작성 조건',
+    '1. 리더십(원장, 부원장급)에게 보고하는 문체로 작성',
+    '2. 3~4문단, 각 문단 3~4문장',
+    '3. 전체 달성 현황 → 잘된 점 → 미달 주요 지표 및 원인 개괄 → 향후 관리 방향 순서로',
+    '4. 수치를 구체적으로 언급 (예: "전체 ' + total + '개 지표 중 ' + ok + '개 달성")',
+    '5. 전문적이되 이해하기 쉽게, 과장 없이 사실 기반으로',
+    '6. 총평만 작성 (제목, 서두 인사 불필요)'
+  ].join('\n');
+
+  try {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        model: 'claude-sonnet-4-6',
+        max_tokens: 1000,
+        messages: [{ role: 'user', content: prompt }]
+      })
+    });
+
+    const data = await response.json();
+    const text = data.content?.map(c => c.text || '').join('') || '응답을 받지 못했습니다.';
+    textEl.textContent = text;
+  } catch (err) {
+    textEl.textContent = '⚠️ 오류가 발생했습니다: ' + err.message;
+  } finally {
+    btn.textContent = '✨ AI 총평 재생성';
+    btn.disabled = false;
+  }
+}
+
+// ── 초기 로드 ──
+window.onload = () => {
+  loadSampleData();
+  // 업로드 패널 약간 열어두기
+  toggleUpload();
+};
+</script>
+</body>
+</html>
