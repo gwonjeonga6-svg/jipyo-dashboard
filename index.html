@@ -267,15 +267,15 @@ tr:hover td { background:#FAFBFD; }
         <option value="Q4">2026년 4분기</option>
       </select>
     </div>
-    <div id="dropZone" onclick="document.getElementById('anyFile').click()"
-      style="border:2px dashed #CBD5E1;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:#FAFBFD;">
+    <input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">
+    <label for="anyFile" id="dropZone"
+      style="display:block;border:2px dashed #CBD5E1;border-radius:10px;padding:28px;text-align:center;cursor:pointer;transition:all .2s;background:#FAFBFD;">
       <div style="font-size:32px;margin-bottom:8px">📂</div>
       <div style="font-size:13px;font-weight:600;color:#1B3A6B">HTML 또는 xlsx 파일을 클릭하거나 드래그해서 올려주세요</div>
       <div style="font-size:11px;color:#94A3B8;margin-top:6px">
         🟢 구글시트 → 다운로드 → 웹페이지(.html) &nbsp;|&nbsp; 🔵 엑셀 → .xlsx 그대로
       </div>
-      <input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">
-    </div>
+    </label>
     <div class="upload-actions" style="margin-top:10px">
       <button class="btn-secondary" onclick="loadSampleData()">📋 기본 데이터로 보기 (1분기)</button>
     </div>
@@ -659,8 +659,7 @@ function updateDropZone(filename, type) {
   zone.innerHTML =
     '<div style="font-size:20px;margin-bottom:6px">✅</div>' +
     '<div style="font-size:13px;font-weight:600;color:#16A34A">' + icon + ' ' + filename + '</div>' +
-    '<div style="font-size:11px;color:#94A3B8;margin-top:4px">클릭해서 다른 파일 선택</div>' +
-    '<input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">';
+    '<div style="font-size:11px;color:#94A3B8;margin-top:4px">클릭해서 다른 파일 선택</div>';
 }
 
 function parseHtmlFile(file) {
