@@ -453,6 +453,289 @@ function toggleUpload() {
 }
 
 // ── 기본 데이터 로드 ──
+// ── 상태 메시지 ──
+function showStatus(msg, isError) {
+  const el = document.getElementById('uploadStatus');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color = isError ? '#DC2626' : '#16A34A';
+  el.textContent = msg;
+  if (!isError) setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// ── 전체 렌더링 ──
+function renderAll() {
+  if (!currentData || !currentData.length) return;
+
+  const total = currentData.length;
+  const ok    = currentData.filter(d => d.achieved).length;
+  const ng    = currentData.filter(d => d.failed).length;
+  const rate  = total ? Math.round(ok / total * 100) : 0;
+  const qLabel = QUARTER_LABELS[currentQuarter] || currentQuarter;
+
+  // 헤더 배지
+  document.getElementById('totalCount').textContent = total;
+  document.getElementById('okCount').textContent    = ok;
+  document.getElementById('ngCount').textContent    = ng;
+  document.getElementById('rateVal').textContent    = rate + '%';
+  document.getElementById('currentQuarterLabel').textContent = qLabel;
+
+  // 종합현황 카드
+  const elTotal = document.getElementById('ov-total');
+  const elOk    = document.getElementById('ov-ok');
+  const elNg    = document.getElementById('ov-ng');
+  const elRate  = document.getElementById('ov-rate');
+  const elBar   = document.getElementById('ov-bar');
+  if (elTotal) elTotal.textContent = total;
+  if (elOk)    elOk.textContent    = ok;
+  if (elNg)    elNg.textContent    = ng;
+  if (elRate)  elRate.textContent  = rate + '%';
+  if (elBar)   setTimeout(() => { elBar.style.width = rate + '%'; }, 100);
+
+  // 영역별 카드
+  renderAreaCards();
+
+  // 종합현황 테이블
+  const mLabels = MONTH_LABELS[currentQuarter] || ['1월','2월','3월'];
+  const overviewEl = document.getElementById('overview-tables');
+  if (overviewEl) overviewEl.innerHTML = buildTable(currentData, mLabels);
+
+  // 영역별 탭
+  const areaTabMap = {
+    '환자안전': 'safety-content',
+    '진료영역': 'clinical-content',
+    '관리영역': 'admin-content',
+    '외부평가': 'admin-content',
+    '기타':     'admin-content',
+    '미분류':   'admin-content',
+  };
+
+  // 각 탭 초기화
+  ['safety-content','clinical-content','admin-content'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.innerHTML = '';
+  });
+
+  // 영역별 그룹화 후 렌더링
+  const areaGroups = {};
+  currentData.forEach(d => {
+    const a = d.area || '미분류';
+    if (!areaGroups[a]) areaGroups[a] = [];
+    areaGroups[a].push(d);
+  });
+
+  Object.entries(areaGroups).forEach(([area, items]) => {
+    const contentId = areaTabMap[area];
+    if (!contentId) return;
+    const el = document.getElementById(contentId);
+    if (!el) return;
+    const cfg = AREA_CONFIG[area] || AREA_CONFIG['미분류'];
+    const section = document.createElement('div');
+    section.className = 'section';
+    section.innerHTML = `
+      <div class="section-header">
+        <div class="dot" style="background:${cfg.color}"></div>
+        ${cfg.label} (${items.length}개)
+      </div>
+      ${buildTable(items, mLabels)}`;
+    el.appendChild(section);
+  });
+
+  // 추이분석 탭
+  renderTrendTab();
+
+  // 인증용 탭
+  renderCertTab();
+}
+
+// ── 영역별 카드 ──
+function renderAreaCards() {
+  const container = document.getElementById('areaGrid');
+  if (!container) return;
+
+  const areaMap = {};
+  currentData.forEach(d => {
+    const a = d.area || '미분류';
+    if (!areaMap[a]) areaMap[a] = { total:0, ok:0, ng:0 };
+    areaMap[a].total++;
+    if (d.achieved) areaMap[a].ok++;
+    if (d.failed)   areaMap[a].ng++;
+  });
+
+  container.innerHTML = Object.entries(areaMap).map(([area, s]) => {
+    const cfg = AREA_CONFIG[area] || AREA_CONFIG['미분류'];
+    const r = s.total ? Math.round(s.ok / s.total * 100) : 0;
+    return `<div class="area-card">
+      <div class="area-name">
+        <span>${cfg.label}</span>
+        <span class="area-rate" style="color:${cfg.color}">${r}%</span>
+      </div>
+      <div class="area-progress"><div class="area-progress-fill" style="width:${r}%;background:${cfg.color}"></div></div>
+      <div class="area-counts">
+        <span>전체 ${s.total}개</span>
+        <span class="ok-c">달성 ${s.ok}</span>
+        <span class="ng-c">미달 ${s.ng}</span>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── 지표 테이블 (영역별) ──
+function renderIndicatorTables() {
+  const mLabels = MONTH_LABELS[currentQuarter] || ['1월','2월','3월'];
+
+  // 영역별로 그룹화
+  const areaGroups = {};
+  currentData.forEach(d => {
+    const a = d.area || '미분류';
+    if (!areaGroups[a]) areaGroups[a] = [];
+    areaGroups[a].push(d);
+  });
+
+  // 각 영역 탭에 렌더링
+  const areaTabMap = {
+    '환자안전': 'pane-safety',
+    '진료영역': 'pane-clinical',
+    '관리영역': 'pane-admin',
+    '외부평가': 'pane-admin',
+    '기타':     'pane-admin',
+    '미분류':   'pane-admin',
+  };
+
+  // 종합현황 테이블
+  renderTableInPane('pane-overview-table', currentData, mLabels);
+
+  // 각 영역 탭
+  Object.entries(areaGroups).forEach(([area, items]) => {
+    const paneId = areaTabMap[area];
+    if (!paneId) return;
+    const pane = document.getElementById(paneId);
+    if (!pane) return;
+    // 섹션 추가
+    let section = pane.querySelector('.section[data-area="' + area + '"]');
+    if (!section) {
+      section = document.createElement('div');
+      section.className = 'section';
+      section.setAttribute('data-area', area);
+      pane.appendChild(section);
+    }
+    const cfg = AREA_CONFIG[area] || AREA_CONFIG['미분류'];
+    section.innerHTML = `
+      <div class="section-header">
+        <div class="dot" style="background:${cfg.color}"></div>
+        ${cfg.label} (${items.length}개)
+      </div>
+      ${buildTable(items, mLabels)}`;
+  });
+
+  // 주이분석 탭
+  renderTrendTab();
+}
+
+function renderTableInPane(paneId, items, mLabels) {
+  const el = document.getElementById(paneId);
+  if (!el) return;
+  el.innerHTML = buildTable(items, mLabels);
+}
+
+function buildTable(items, mLabels) {
+  const rows = items.map(d => {
+    const badge = d.achieved
+      ? '<span class="badge-ok">✓ 달성</span>'
+      : d.failed
+        ? '<span class="badge-ng">✗ 미달</span>'
+        : '<span class="badge-na">— 미입력</span>';
+    return `<tr onclick="openModal(${d.seq})" style="cursor:pointer">
+      <td>${d.seq}</td>
+      <td>${d.ind_num || ''}</td>
+      <td>${d.name}</td>
+      <td>${d.dept || ''}</td>
+      <td>${d.m1_r || '—'}</td>
+      <td>${d.m2_r || '—'}</td>
+      <td>${d.m3_r || '—'}</td>
+      <td><b>${d.result || '—'}</b>${d.unit || ''}</td>
+      <td>${badge}</td>
+    </tr>`;
+  }).join('');
+  return `<table>
+    <thead><tr>
+      <th>순번</th><th>지표번호</th><th>지표명</th><th>부서</th>
+      <th>${mLabels[0]}</th><th>${mLabels[1]}</th><th>${mLabels[2]}</th>
+      <th>분기결과</th><th>달성여부</th>
+    </tr></thead>
+    <tbody>${rows}</tbody>
+  </table>`;
+}
+
+// ── 추이분석 탭 ──
+function renderTrendTab() {
+  const el = document.getElementById('trend-content');
+  if (!el) return;
+  const mLabels = MONTH_LABELS[currentQuarter] || ['1월','2월','3월'];
+  const rows = currentData.map(d => {
+    const vals = [d.m1_r, d.m2_r, d.m3_r].map(v => parseFloat(v) || null);
+    const hasData = vals.some(v => v !== null);
+    if (!hasData) return '';
+    const max = Math.max(...vals.filter(v => v !== null));
+    const bars = vals.map((v, i) => {
+      if (v === null) return `<td style="color:#94A3B8;text-align:center">—</td>`;
+      const pct = max > 0 ? Math.round(v / max * 100) : 0;
+      return `<td>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="flex:1;background:#E2E8F0;border-radius:4px;height:8px;overflow:hidden">
+            <div style="width:${pct}%;height:100%;background:#3B82F6;border-radius:4px"></div>
+          </div>
+          <span style="font-size:11px;white-space:nowrap">${v}${d.unit||''}</span>
+        </div>
+      </td>`;
+    }).join('');
+    return `<tr><td>${d.name}</td><td>${d.dept||''}</td>${bars}<td><b>${d.result||'—'}</b></td></tr>`;
+  }).filter(Boolean).join('');
+
+  el.innerHTML = `<table>
+    <thead><tr><th>지표명</th><th>부서</th><th>${mLabels[0]}</th><th>${mLabels[1]}</th><th>${mLabels[2]}</th><th>분기결과</th></tr></thead>
+    <tbody>${rows || '<tr><td colspan="6" style="text-align:center;color:#94A3B8;padding:20px">데이터 없음</td></tr>'}</tbody>
+  </table>`;
+}
+
+// ── 인증용 탭 ──
+function renderCertTab() {
+  const tbody = document.getElementById('cert-tbody');
+  if (!tbody) return;
+  const mLabels = MONTH_LABELS[currentQuarter] || ['1월','2월','3월'];
+  const certImpData = [];
+
+  const rows = currentData.map((d, idx) => {
+    certImpData.push({ name: d.name, imp: d.improvement });
+    const badge = d.achieved
+      ? '<span class="badge-ok">✓ 달성</span>'
+      : d.failed ? '<span class="badge-ng">✗ 미달</span>'
+      : '<span class="badge-na">—</span>';
+    const impHtml = d.improvement
+      ? `<div id="imp-wrap-${idx}" style="font-size:11px;color:#475569;line-height:1.5">
+          ${d.improvement.substring(0,80)}${d.improvement.length>80?'…':''}
+          <br><button onclick="summarizeImprovement(${idx})" style="margin-top:3px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;">✨ AI요약</button>
+        </div>`
+      : '<span style="color:#94A3B8;font-size:11px">—</span>';
+    return `<tr>
+      <td>${d.seq}</td>
+      <td>${d.ind_num||''}</td>
+      <td>${d.dept||''}</td>
+      <td style="font-weight:600">${d.name}</td>
+      <td style="font-size:10px;color:#475569">${(d.definition||'').substring(0,60)}${(d.definition||'').length>60?'…':''}</td>
+      <td style="font-size:10px">${(d.numerator||'').substring(0,40)}${(d.numerator||'').length>40?'…':''}</td>
+      <td style="font-size:10px">${(d.denominator||'').substring(0,40)}${(d.denominator||'').length>40?'…':''}</td>
+      <td>${d.unit||''}</td>
+      <td><b>${d.result||'—'}</b></td>
+      <td>${badge}</td>
+      <td class="improvement-cell">${impHtml}</td>
+    </tr>`;
+  }).join('');
+
+  window._certImpData = certImpData;
+  tbody.innerHTML = rows;
+}
+
 function loadSampleData() {
   currentData = DEFAULT_Q1;
   currentQuarter = 'Q1';
