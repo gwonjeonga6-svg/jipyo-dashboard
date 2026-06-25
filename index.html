@@ -197,80 +197,67 @@ tr:hover td { background:#FAFBFD; }
   body { background:#fff; font-size:11px; }
   .header { background:#1B3A6B !important; padding:12px 20px; }
   .header .sub, .hbadge .lbl { color:#A8C4E8 !important; }
-  .upload-panel, .tabs, .print-bar, #aiSummaryBtn { display:none !important; }
+  .upload-panel, .tabs, .print-bar, #aiSummaryBtn, #trendSearch { display:none !important; }
   .content { padding:10px 14px; }
-  /* 현재 활성 탭만 인쇄 */
+
+  /* ── 핵심: 활성 탭만 표시 ── */
   .pane { display:none !important; }
   .pane.active { display:block !important; }
+
   /* 카드 */
   .summary { grid-template-columns:repeat(4,1fr); gap:10px; }
   .card { box-shadow:none; border:1px solid #E2E8F0; padding:12px; }
   .card .val { font-size:22px; }
-  /* 영역카드 */
   .area-grid { grid-template-columns:repeat(3,1fr); }
   .area-card { box-shadow:none; border:1px solid #E2E8F0; }
-  /* 섹션 테이블 */
+
+  /* 테이블 */
   .section { box-shadow:none; border:1px solid #E2E8F0; margin-bottom:10px; }
   table { font-size:10px; }
   th { font-size:10px; padding:6px 8px; background:#1B3A6B !important; color:#fff !important; }
   td { padding:6px 8px; font-size:10px; }
-  /* 인증용 상세 */
+
+  /* 인증용 */
   .cert-table th { background:#1B3A6B !important; color:#fff !important; font-size:9px; padding:5px 6px; }
   .cert-table td { font-size:9px; padding:4px 6px; }
   .cert-table tr:nth-child(even) td { background:#F8FAFC !important; }
   .improvement-cell { max-width:180px; font-size:9px; }
-  /* 뱃지 색상 */
+
+  /* 뱃지 */
   .badge-ok { background:#DCFCE7 !important; color:#16A34A !important; }
   .badge-ng { background:#FEE2E2 !important; color:#DC2626 !important; }
   .badge-na { background:#F1F5F9 !important; }
-  /* AI 총평 패널 */
+
+  /* AI 총평 */
   #aiSummaryPanel { border:1px solid #DBEAFE; padding:8px 20px !important; }
   #aiSummaryText { font-size:10px !important; line-height:1.4 !important; }
-  /* 추이분석 인쇄 레이아웃 */
-  #pane-trend { display:block !important; }
-  #trendSearch { display:none !important; }
-  #trend-content {
-    display:grid !important;
-    grid-template-columns:repeat(2,1fr) !important;
-    gap:8px !important;
-  }
-  .trend-card {
-    break-inside:avoid !important;
-    page-break-inside:avoid !important;
-    padding:10px !important;
-  }
-  .trend-card canvas { max-height:90px !important; }
-  .trend-card:nth-child(5) { page-break-before:always !important; }
-  .trend-card:nth-child(11) { page-break-before:always !important; }
-  .trend-card:nth-child(17) { page-break-before:always !important; }
-  .trend-card:nth-child(23) { page-break-before:always !important; }
-  .trend-card:nth-child(29) { page-break-before:always !important; }
-  /* AI요약 버튼 및 결과 인쇄시 숨김 */
-  [id^="imp-wrap-"] button { display:none !important; }
-  .improvement-cell button { display:none !important; }
-  /* 1페이지: 총평+카드+영역카드 / 2페이지: 테이블 */
-  #overview-tables { page-break-before: always; }
-  /* 추이분석 인쇄 레이아웃 */
-  #pane-trend { display:block !important; }
-  #trendSearch { display:none !important; }
-  #trend-content {
-    display:grid !important;
-    grid-template-columns:repeat(2,1fr) !important;
-    gap:8px !important;
-  }
-  .trend-card {
-    break-inside:avoid !important;
-    page-break-inside:avoid !important;
-    padding:10px !important;
-  }
-  .trend-card canvas { max-height:90px !important; }
-  .trend-card:nth-child(5) { page-break-before:always !important; }
-  .trend-card:nth-child(11) { page-break-before:always !important; }
-  .trend-card:nth-child(17) { page-break-before:always !important; }
-  .trend-card:nth-child(23) { page-break-before:always !important; }
-  .trend-card:nth-child(29) { page-break-before:always !important; }
-  /* AI요약 버튼 및 결과 인쇄시 숨김 */
+
+  /* AI요약 버튼 숨김 (텍스트는 표시) */
   button[onclick*="summarizeImprovement"] { display:none !important; }
+
+  /* 종합현황: 총평+카드 1페이지, 테이블 2페이지 */
+  #overview-tables { page-break-before:always; }
+
+  /* 추이분석 레이아웃 */
+  #trend-content {
+    display:grid !important;
+    grid-template-columns:repeat(2,1fr) !important;
+    gap:12px !important;
+    align-content:start !important;
+  }
+  .trend-card {
+    break-inside:avoid !important;
+    page-break-inside:avoid !important;
+    padding:10px !important;
+  }
+  .trend-card canvas { max-height:90px !important; }
+  /* 1페이지 4개, 이후 6개씩 */
+  .trend-card:nth-child(5)  { page-break-before:always !important; }
+  .trend-card:nth-child(11) { page-break-before:always !important; }
+  .trend-card:nth-child(17) { page-break-before:always !important; }
+  .trend-card:nth-child(23) { page-break-before:always !important; }
+  .trend-card:nth-child(29) { page-break-before:always !important; }
+
   @page { size:A4 landscape; margin:10mm; }
 }
 </style>
@@ -1334,11 +1321,23 @@ function printDashboard() {
 }
 
 function printCert() {
-  // 인증용 탭으로 이동 후 인쇄
+  // 모든 탭 비활성화
   document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('pane-cert').classList.add('active');
-  setTimeout(() => window.print(), 300);
+  // 인증탭만 활성화
+  const certPane = document.getElementById('pane-cert');
+  if (certPane) certPane.classList.add('active');
+  // 충분한 지연 후 인쇄
+  setTimeout(() => {
+    window.print();
+    // 인쇄 후 종합현황 탭으로 복귀
+    setTimeout(() => {
+      document.querySelectorAll('.pane').forEach(p => p.classList.remove('active'));
+      document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+      document.getElementById('pane-overview').classList.add('active');
+      document.querySelector('.tab').classList.add('active');
+    }, 500);
+  }, 600);
 }
 
 function showTabById(name) {
