@@ -1,5 +1,4 @@
 export default async function handler(req) {
-  // CORS preflight
   if (req.method === 'OPTIONS') {
     return new Response(null, {
       status: 200,
@@ -18,24 +17,31 @@ export default async function handler(req) {
   try {
     const body = await req.json();
 
-    const response = await fetch('https://api.anthropic.com/v1/messages', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'x-api-key': process.env.ANTHROPIC_API_KEY,
-        'anthropic-version': '2023-06-01',
+        'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
+        'HTTP-Referer': 'https://jipyo-dashboard.vercel.app',
+        'X-Title': 'Jipyo Dashboard',
       },
       body: JSON.stringify({
-        model: body.model || 'claude-sonnet-4-6',
-        max_tokens: body.max_tokens || 1000,
+        model: 'anthropic/claude-sonnet-4-5',
+        max_tokens: 1000,
         messages: body.messages,
       }),
     });
 
-    const text = await response.text();
+    const data = await response.json();
 
-    return new Response(text, {
-      status: response.status,
+    // OpenRouter 응답을 Anthropic 형식으로 변환
+    const text = data.choices?.[0]?.message?.content || '응답 없음';
+    const converted = {
+      content: [{ type: 'text', text }]
+    };
+
+    return new Response(JSON.stringify(converted), {
+      status: 200,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
@@ -43,8 +49,7 @@ export default async function handler(req) {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({ 
-      error: { message: err.message },
+    return new Response(JSON.stringify({
       content: [{ type: 'text', text: '오류: ' + err.message }]
     }), {
       status: 500,
