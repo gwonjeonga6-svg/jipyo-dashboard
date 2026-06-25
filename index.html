@@ -226,8 +226,13 @@ tr:hover td { background:#FAFBFD; }
   /* AI 총평 패널 */
   #aiSummaryPanel { border:1px solid #DBEAFE; padding:8px 20px !important; }
   #aiSummaryText { font-size:10px !important; line-height:1.4 !important; }
+  /* AI요약 버튼 및 결과 인쇄시 숨김 */
+  [id^="imp-wrap-"] button { display:none !important; }
+  .improvement-cell button { display:none !important; }
   /* 1페이지: 총평+카드+영역카드 / 2페이지: 테이블 */
   #overview-tables { page-break-before: always; }
+  /* AI요약 버튼 및 결과 인쇄시 숨김 */
+  button[onclick*="summarizeImprovement"] { display:none !important; }
   @page { size:A4 landscape; margin:10mm; }
 }
 </style>
@@ -369,7 +374,7 @@ tr:hover td { background:#FAFBFD; }
     <div class="section">
       <div class="section-header">
         <span class="dot" style="background:#1B3A6B"></span>
-        인증조사 대비 — 지표 상세 정의표
+        지표 상세 정의표
         <span style="margin-left:auto;font-size:11px;font-weight:400;color:#94A3B8">분자·분모 정의 및 개선활동 포함</span>
       </div>
       <div class="cert-table-wrap">
