@@ -1292,19 +1292,9 @@ async function summarizeImprovement(idx) {
 
   wrap.innerHTML = '<span style="color:#94A3B8;font-size:10px">⏳ 요약 중...</span>';
 
-  const prompt = [
-    '아래 개선활동 내용을 80자 이내 한 문장으로 요약하라.',
-    '',
-    '필수 규칙:',
-    '1. 반드시 "~함" "~실시" "~강화" "~운영" "~모니터링" 으로만 끝낼 것',
-    '2. "~합니다" "~있습니다" "~됩니다" "~킨다" "~한다" 등 모든 종결어미 절대 금지',
-    '3. 서두("개선활동으로는", "주요 활동은", "다음과 같습니다" 등) 절대 금지',
-    '4. 핵심 활동만, 쉼표로 연결, 80자 초과 금지',
-    '5. 예시: "정기 모니터링 실시, 결과 부서 공유 및 피드백 강화, 취약 부서 집중 교육 운영"',
-    '',
-    '개선활동 내용:',
-    item.imp
-  ].join('\n');
+  // 개선활동 내용 500자로 제한 (너무 길면 API 오류)
+  const impText = (item.imp || '').substring(0, 500);
+  const prompt = '다음 병원 개선활동을 80자 이내로 요약하라. "~함,~실시,~강화" 어미 사용. 경어체 금지. 서두 금지.\n\n' + impText;
 
   try {
     const response = await fetch('/api/claude', {
