@@ -17,31 +17,26 @@ export default async function handler(req) {
   try {
     const body = await req.json();
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
-        'HTTP-Referer': 'https://jipyo-dashboard.vercel.app',
-        'X-Title': 'Jipyo Dashboard',
+        'x-api-key': process.env.ANTHROPIC_API_KEY,
+        'anthropic-version': '2023-06-01',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-sonnet-4-5',
+        model: 'claude-haiku-4-5-20251001',
         max_tokens: 1000,
         messages: body.messages,
       }),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    console.log('status:', response.status);
+    console.log('response:', text.substring(0, 200));
 
-    // OpenRouter 응답을 Anthropic 형식으로 변환
-    const text = data.choices?.[0]?.message?.content || '응답 없음';
-    const converted = {
-      content: [{ type: 'text', text }]
-    };
-
-    return new Response(JSON.stringify(converted), {
-      status: 200,
+    return new Response(text, {
+      status: response.status,
       headers: {
         'Content-Type': 'application/json',
         'Access-Control-Allow-Origin': '*',
