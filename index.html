@@ -195,7 +195,12 @@ tr:hover td { background:#FAFBFD; }
 @media print {
   * { -webkit-print-color-adjust:exact !important; print-color-adjust:exact !important; }
   body { background:#fff; font-size:11px; }
-  .header { background:#1B3A6B !important; padding:12px 20px; }
+  .header { background:#1B3A6B !important; padding:6px 20px; }
+  .header-left h1 { font-size:15px !important; }
+  .header-left .sub { font-size:10px !important; margin-top:1px; }
+  .hbadge { padding:4px 12px !important; min-width:60px !important; }
+  .hbadge .num { font-size:16px !important; }
+  .hbadge .lbl { font-size:9px !important; }
   .header .sub, .hbadge .lbl { color:#A8C4E8 !important; }
   .upload-panel, .tabs, .print-bar, #aiSummaryBtn, #trendSearch { display:none !important; }
   .content { padding:10px 14px; }
@@ -252,10 +257,11 @@ tr:hover td { background:#FAFBFD; }
   }
   .trend-card canvas { max-height:90px !important; }
   /* 1페이지 4개, 이후 6개씩 */
-  .trend-card:nth-child(9)  { page-break-before:always !important; }
-  .trend-card:nth-child(17) { page-break-before:always !important; }
-  .trend-card:nth-child(25) { page-break-before:always !important; }
-  .trend-card:nth-child(33) { page-break-before:always !important; }
+  /* 1페이지 4개, 이후 8개씩 */
+  .trend-card:nth-child(5)  { page-break-before:always !important; }
+  .trend-card:nth-child(13) { page-break-before:always !important; }
+  .trend-card:nth-child(21) { page-break-before:always !important; }
+  .trend-card:nth-child(29) { page-break-before:always !important; }
 
   @page { size:A4 landscape; margin:10mm; }
 }
@@ -1313,9 +1319,13 @@ async function summarizeImprovement(idx) {
 
     wrap.innerHTML =
       '<span style="color:#334155;font-size:11px;line-height:1.6">' + summary + '</span>'
-      + '<br><button onclick="summarizeImprovement(' + idx + ')" '
+      + '<br>'
+      + '<button onclick="summarizeImprovement(' + idx + ')" '
       + 'style="margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;">'
-      + '↺ 재요약</button>';
+      + '↺ 재요약</button>'
+      + '<button onclick="restoreOriginal(' + idx + ')" '
+      + 'style="margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;margin-left:6px;">'
+      + '↩ 원문</button>';
 
   } catch (err) {
     wrap.innerHTML = '<span style="color:#DC2626;font-size:10px">⚠️ ' + err.message + '</span>'
