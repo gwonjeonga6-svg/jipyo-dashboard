@@ -239,6 +239,8 @@ tr:hover td { background:#FAFBFD; }
 
   /* AI요약 버튼 숨김 (텍스트는 표시) */
   button[onclick*="summarizeImprovement"] { display:none !important; }
+  button[onclick*="restoreOriginal"] { display:none !important; }
+  .no-print { display:none !important; }
 
   /* 종합현황: 총평+카드 1페이지, 테이블 2페이지 */
   #overview-tables { page-break-before:always; }
@@ -930,8 +932,8 @@ function renderCertTab() {
       ? `<div id="imp-wrap-${idx}" style="font-size:11px;color:#475569;line-height:1.5">
           <span id="imp-text-${idx}">${d.improvement.substring(0,80)}${d.improvement.length>80?'…':''}</span>
           <br>
-          <button onclick="summarizeImprovement(${idx})" style="margin-top:3px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;">✨ AI요약</button>
-          <button onclick="restoreOriginal(${idx})" style="margin-top:3px;background:#F1F5F9;border:1px solid #E2E8F0;color:#64748B;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;margin-left:3px;">↩ 원문</button>
+          <button class="no-print" onclick="summarizeImprovement(${idx})" style="margin-top:3px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;">✨ AI요약</button>
+          <button class="no-print" onclick="restoreOriginal(${idx})" style="margin-top:3px;background:#F1F5F9;border:1px solid #E2E8F0;color:#64748B;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;margin-left:3px;">↩ 원문</button>
         </div>`
       : '<span style="color:#94A3B8;font-size:11px">—</span>';
     return `<tr>
@@ -1270,7 +1272,8 @@ function parseHtmlFile(file) {
 function restoreOriginal(idx) {
   const wrap = document.getElementById('imp-wrap-' + idx);
   if (!wrap) return;
-  const item = _certImpData[idx];
+  const data = window._certImpData || [];
+  const item = data[idx];
   if (!item || !item.imp) return;
   const textEl = document.getElementById('imp-text-' + idx);
   if (textEl) {
@@ -1317,15 +1320,29 @@ async function summarizeImprovement(idx) {
     const res = await response.json();
     const summary = res.content?.map(c => c.text || '').join('') || res.choices?.[0]?.message?.content || '요약 실패';
 
-    wrap.innerHTML =
-      '<span style="color:#334155;font-size:11px;line-height:1.6">' + summary + '</span>'
-      + '<br>'
-      + '<button onclick="summarizeImprovement(' + idx + ')" '
-      + 'style="margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;">'
-      + '↺ 재요약</button>'
-      + '<button onclick="restoreOriginal(' + idx + ')" '
-      + 'style="margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;margin-left:6px;">'
-      + '↩ 원문</button>';
+    // imp-text span 업데이트 (id 유지)
+    const textSpan = document.getElementById('imp-text-' + idx);
+    if (textSpan) {
+      textSpan.textContent = summary;
+      textSpan.style.color = '#334155';
+    }
+    // 버튼 교체
+    const existingBtns = wrap.querySelectorAll('button');
+    existingBtns.forEach(b => b.remove());
+    const br = document.createElement('br');
+    wrap.appendChild(br);
+    const btn1 = document.createElement('button');
+    btn1.className = 'no-print';
+    btn1.onclick = () => summarizeImprovement(idx);
+    btn1.style.cssText = 'margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;';
+    btn1.textContent = '↺ 재요약';
+    wrap.appendChild(btn1);
+    const btn2 = document.createElement('button');
+    btn2.className = 'no-print';
+    btn2.onclick = () => restoreOriginal(idx);
+    btn2.style.cssText = 'margin-top:3px;background:none;border:none;color:#94A3B8;font-size:10px;cursor:pointer;padding:0;margin-left:6px;';
+    btn2.textContent = '↩ 원문';
+    wrap.appendChild(btn2);
 
   } catch (err) {
     wrap.innerHTML = '<span style="color:#DC2626;font-size:10px">⚠️ ' + err.message + '</span>'
