@@ -252,11 +252,10 @@ tr:hover td { background:#FAFBFD; }
   }
   .trend-card canvas { max-height:90px !important; }
   /* 1페이지 4개, 이후 6개씩 */
-  .trend-card:nth-child(5)  { page-break-before:always !important; }
-  .trend-card:nth-child(11) { page-break-before:always !important; }
+  .trend-card:nth-child(9)  { page-break-before:always !important; }
   .trend-card:nth-child(17) { page-break-before:always !important; }
-  .trend-card:nth-child(23) { page-break-before:always !important; }
-  .trend-card:nth-child(29) { page-break-before:always !important; }
+  .trend-card:nth-child(25) { page-break-before:always !important; }
+  .trend-card:nth-child(33) { page-break-before:always !important; }
 
   @page { size:A4 landscape; margin:10mm; }
 }
@@ -923,8 +922,10 @@ function renderCertTab() {
       : '<span class="badge-na">—</span>';
     const impHtml = d.improvement
       ? `<div id="imp-wrap-${idx}" style="font-size:11px;color:#475569;line-height:1.5">
-          ${d.improvement.substring(0,80)}${d.improvement.length>80?'…':''}
-          <br><button onclick="summarizeImprovement(${idx})" style="margin-top:3px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;">✨ AI요약</button>
+          <span id="imp-text-${idx}">${d.improvement.substring(0,80)}${d.improvement.length>80?'…':''}</span>
+          <br>
+          <button onclick="summarizeImprovement(${idx})" style="margin-top:3px;background:#EFF6FF;border:1px solid #BFDBFE;color:#1D4ED8;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;">✨ AI요약</button>
+          <button onclick="restoreOriginal(${idx})" style="margin-top:3px;background:#F1F5F9;border:1px solid #E2E8F0;color:#64748B;border-radius:4px;font-size:10px;cursor:pointer;padding:2px 6px;margin-left:3px;">↩ 원문</button>
         </div>`
       : '<span style="color:#94A3B8;font-size:11px">—</span>';
     return `<tr>
@@ -1259,6 +1260,19 @@ function parseHtmlFile(file) {
   reader.readAsText(file, 'utf-8');
 }
 
+// ── 원문 복원 함수 ──
+function restoreOriginal(idx) {
+  const wrap = document.getElementById('imp-wrap-' + idx);
+  if (!wrap) return;
+  const item = _certImpData[idx];
+  if (!item || !item.imp) return;
+  const textEl = document.getElementById('imp-text-' + idx);
+  if (textEl) {
+    textEl.textContent = item.imp.substring(0,80) + (item.imp.length>80?'…':'');
+    textEl.style.color = '#475569';
+  }
+}
+
 // ── 개선활동 AI 요약 (index로 데이터 참조) ──
 async function summarizeImprovement(idx) {
   const wrap = document.getElementById('imp-wrap-' + idx);
@@ -1270,15 +1284,14 @@ async function summarizeImprovement(idx) {
   wrap.innerHTML = '<span style="color:#94A3B8;font-size:10px">⏳ 요약 중...</span>';
 
   const prompt = [
-    '병원 QPS 지표 [' + item.name + ']의 개선활동을 80자 이내로 요약하세요.',
+    '아래 개선활동 내용을 80자 이내 한 문장으로 요약하라.',
     '',
-    '규칙:',
-    '- 80자 이내 필수',
-    '- "~함, ~실시, ~강화, ~운영, ~모니터링" 어미만 사용',
-    '- 경어체("~합니다, ~있습니다") 절대 금지',
-    '- "개선활동으로는", "개선활동 내용은", "다음과 같습니다" 등 서두 문구 절대 금지',
-    '- 바로 핵심 활동 내용부터 시작',
-    '- 번호 없이 한 문장으로',
+    '필수 규칙:',
+    '1. 반드시 "~함" "~실시" "~강화" "~운영" "~모니터링" 으로만 끝낼 것',
+    '2. "~합니다" "~있습니다" "~됩니다" "~킨다" "~한다" 등 모든 종결어미 절대 금지',
+    '3. 서두("개선활동으로는", "주요 활동은", "다음과 같습니다" 등) 절대 금지',
+    '4. 핵심 활동만, 쉼표로 연결, 80자 초과 금지',
+    '5. 예시: "정기 모니터링 실시, 결과 부서 공유 및 피드백 강화, 취약 부서 집중 교육 운영"',
     '',
     '개선활동 내용:',
     item.imp
