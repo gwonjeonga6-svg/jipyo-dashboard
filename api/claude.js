@@ -16,12 +16,13 @@ export default async function handler(req) {
 
   try {
     const body = await req.json();
+    const apiKey = process.env.OPENROUTER_API_KEY;
 
     const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + process.env.OPENROUTER_API_KEY,
+        'Authorization': `Bearer ${apiKey}`,
         'HTTP-Referer': 'https://jipyo-dashboard.vercel.app',
         'X-Title': 'Jipyo Dashboard',
       },
@@ -32,11 +33,17 @@ export default async function handler(req) {
       }),
     });
 
-    const data = await response.json();
-    const text = data.choices?.[0]?.message?.content || '응답 없음';
+    const text = await response.text();
+    console.log('OpenRouter status:', response.status);
+    console.log('OpenRouter response:', text.substring(0, 300));
+
+    let data;
+    try { data = JSON.parse(text); } catch(e) { data = {}; }
+
+    const content = data.choices?.[0]?.message?.content || '응답 없음';
 
     return new Response(JSON.stringify({
-      content: [{ type: 'text', text }]
+      content: [{ type: 'text', text: content }]
     }), {
       status: 200,
       headers: {
