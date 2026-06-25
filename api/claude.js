@@ -27,7 +27,7 @@ export default async function handler(req) {
         'X-Title': 'Jipyo Dashboard',
       },
       body: JSON.stringify({
-        model: 'anthropic/claude-haiku-3-5',
+        model: 'anthropic/claude-3-haiku',
         max_tokens: 1000,
         messages: body.messages,
       }),
