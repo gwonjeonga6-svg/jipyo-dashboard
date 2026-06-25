@@ -1256,7 +1256,7 @@ async function summarizeImprovement(idx) {
     });
 
     const res = await response.json();
-    const summary = res.content?.map(c => c.text || '').join('') || '요약 실패';
+    const summary = res.content?.map(c => c.text || '').join('') || res.choices?.[0]?.message?.content || '요약 실패';
 
     wrap.innerHTML =
       '<span style="color:#334155;font-size:11px;line-height:1.6">' + summary + '</span>'
@@ -1420,7 +1420,9 @@ async function generateAISummary() {
     });
 
     const data = await response.json();
-    const text = data.content?.map(c => c.text || '').join('') || '응답을 받지 못했습니다.';
+    const text = data.content?.map(c => c.text || '').join('')
+      || data.choices?.[0]?.message?.content
+      || '응답을 받지 못했습니다.';
     textEl.textContent = text;
   } catch (err) {
     textEl.textContent = '⚠️ 오류가 발생했습니다: ' + err.message;
