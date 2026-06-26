@@ -254,7 +254,19 @@ tr:hover td { background:#FAFBFD; }
 <div class="header">
   <div class="header-left">
     <h1>📊 지표 관리 대시보드</h1>
-    <div class="sub">좋은삼선병원 QPS팀 · <span id="currentQuarterLabel">2026년 1분기</span></div>
+    <div class="sub">
+      <span id="hospitalName" contenteditable="true"
+        title="클릭해서 병원명 수정"
+        onblur="saveHeaderInfo()"
+        style="outline:none;cursor:text;border-bottom:1px dashed rgba(255,255,255,0.3);padding-bottom:1px;"
+        >좋은삼선병원</span>
+      <span id="deptName" contenteditable="true"
+        title="클릭해서 부서명 수정"
+        onblur="saveHeaderInfo()"
+        style="outline:none;cursor:text;border-bottom:1px dashed rgba(255,255,255,0.3);padding-bottom:1px;margin-left:2px;"
+        > QPS팀</span>
+      · <span id="currentQuarterLabel">2026년 1분기</span>
+    </div>
   </div>
   <div class="header-right">
     <div class="hbadge"><div class="num" id="totalCount">—</div><div class="lbl">전체 지표</div></div>
@@ -828,6 +840,20 @@ function renderCertTab() {
   tbody.innerHTML = rows;
 }
 
+function saveHeaderInfo() {
+  const hospital = document.getElementById('hospitalName')?.textContent.trim();
+  const dept     = document.getElementById('deptName')?.textContent.trim();
+  if (hospital) localStorage.setItem('hospitalName', hospital);
+  if (dept)     localStorage.setItem('deptName', dept);
+}
+
+function loadHeaderInfo() {
+  const hospital = localStorage.getItem('hospitalName');
+  const dept     = localStorage.getItem('deptName');
+  if (hospital) document.getElementById('hospitalName').textContent = hospital;
+  if (dept)     document.getElementById('deptName').textContent = dept;
+}
+
 function selectQuarter(q) {
   currentQuarter = q;
   ['Q1','Q2','Q3','Q4','YR'].forEach(k => {
@@ -1222,9 +1248,10 @@ async function generateAISummary() {
   const okList = currentData.filter(d => d.achieved).map(d => `- ${d.name} (${d.dept}): ${d.result}${d.unit}`).join('\n');
   const areaStatLines = Object.entries(areaStats).map(([a,s]) => '- ' + a + ': ' + s.total + '개 중 달성 ' + s.ok + '개, 미달 ' + s.ng + '개').join('\n');
 
+  const hospitalName = document.getElementById('hospitalName')?.textContent.trim() || '좋은삼선병원';
   const prompt = [
     '당신은 병원 QPS(환자안전·질향상)팀의 전문 분석가입니다.',
-    '아래는 좋은삼선병원의 2026년 ' + qLabel + ' 지표 관리 결과입니다. 이를 바탕으로 리더십 보고용 총평을 작성해주세요.',
+    '아래는 ' + hospitalName + '의 2026년 ' + qLabel + ' 지표 관리 결과입니다. 이를 바탕으로 리더십 보고용 총평을 작성해주세요.',
     '', '## 전체 현황',
     '- 총 지표 수: ' + total + '개',
     '- 달성: ' + ok + '개 / 미달: ' + ng + '개 / 미입력: ' + (total-ok-ng) + '개',
@@ -1263,6 +1290,7 @@ async function generateAISummary() {
 }
 
 window.onload = () => {
+  loadHeaderInfo();
   selectQuarter('Q1');
   toggleUpload();
 };
