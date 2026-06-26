@@ -1,3 +1,5 @@
+export const config = { runtime: 'edge' };
+
 export default async function handler(req) {
   if (req.method === 'OPTIONS') {
     return new Response(null, {
@@ -17,28 +19,31 @@ export default async function handler(req) {
   try {
     const body = await req.json();
 
+    // Groq API 호출 (모델명 변환)
+    const groqBody = {
+      model: 'llama-3.3-70b-versatile',
+      max_tokens: body.max_tokens || 1000,
+      messages: body.messages || [],
+    };
+
     const response = await fetch('https://api.groq.com/openai/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + process.env.GROQ_API_KEY,
+        'Authorization': `Bearer ${process.env.GROQ_API_KEY}`,
       },
-      body: JSON.stringify({
-        model: 'llama-3.1-8b-instant',
-        max_tokens: 1000,
-        messages: body.messages,
-      }),
+      body: JSON.stringify(groqBody),
     });
 
     const data = await response.json();
-    console.log('Groq status:', response.status);
-    console.log('Groq response:', JSON.stringify(data).substring(0, 300));
 
-    const content = data.choices?.[0]?.message?.content || '응답 없음';
+    // Anthropic 형식으로 변환해서 반환 (index.html이 Anthropic 형식 파싱)
+    const text = data.choices?.[0]?.message?.content || '응답 없음';
+    const converted = {
+      content: [{ type: 'text', text }]
+    };
 
-    return new Response(JSON.stringify({
-      content: [{ type: 'text', text: content }]
-    }), {
+    return new Response(JSON.stringify(converted), {
       status: 200,
       headers: {
         'Content-Type': 'application/json',
@@ -47,9 +52,7 @@ export default async function handler(req) {
     });
 
   } catch (err) {
-    return new Response(JSON.stringify({
-      content: [{ type: 'text', text: '오류: ' + err.message }]
-    }), {
+    return new Response(JSON.stringify({ error: err.message }), {
       status: 500,
       headers: {
         'Content-Type': 'application/json',
@@ -58,5 +61,3 @@ export default async function handler(req) {
     });
   }
 }
-
-export const config = { runtime: 'edge' };
