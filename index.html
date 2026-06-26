@@ -48,6 +48,9 @@ body { font-family:'Noto Sans KR','맑은 고딕',sans-serif; background:#F0F4F8
 .quarter-select-row label { font-size:12px; color:#64748B; }
 .quarter-select-row select { padding:5px 10px; border:1px solid #E2E8F0; border-radius:6px; font-size:12px; }
 .upload-actions { display:flex; gap:8px; margin-top:8px; }
+.qbtn { padding:5px 14px; border-radius:6px; border:1px solid #E2E8F0; font-size:12px; cursor:pointer; color:#64748B; background:#fff; font-family:inherit; transition:all .15s; }
+.qbtn:hover { border-color:#1B3A6B; color:#1B3A6B; }
+.qbtn-active { background:#1B3A6B !important; color:#fff !important; border-color:#1B3A6B !important; font-weight:700; }
 .btn-primary { background:#1B3A6B; color:#fff; border:none; border-radius:7px; padding:8px 18px; font-size:12px; cursor:pointer; font-family:inherit; }
 .btn-primary:hover { background:#153260; }
 .btn-secondary { background:#F1F5F9; color:#64748B; border:1px solid #E2E8F0; border-radius:7px; padding:8px 18px; font-size:12px; cursor:pointer; font-family:inherit; }
@@ -275,14 +278,12 @@ tr:hover td { background:#FAFBFD; }
       <b>구글시트 사용자:</b> 파일 → 다운로드 → 웹페이지(.html, 현재 시트)<br>
       <b>엑셀 사용자:</b> .xlsx 파일을 그대로 올리기
     </div>
-    <div class="quarter-select-row">
-      <label>분기 선택:</label>
-      <select id="quarterSelect">
-        <option value="Q1">2026년 1분기</option>
-        <option value="Q2">2026년 2분기</option>
-        <option value="Q3">2026년 3분기</option>
-        <option value="Q4">2026년 4분기</option>
-      </select>
+    <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">
+      <span style="font-size:12px;color:#64748B;margin-right:4px">분기 선택:</span>
+      <button id="qbtn-Q1" onclick="selectQuarter('Q1')" class="qbtn qbtn-active">1분기</button>
+      <button id="qbtn-Q2" onclick="selectQuarter('Q2')" class="qbtn">2분기</button>
+      <button id="qbtn-Q3" onclick="selectQuarter('Q3')" class="qbtn">3분기</button>
+      <button id="qbtn-Q4" onclick="selectQuarter('Q4')" class="qbtn">4분기</button>
     </div>
     <input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">
     <label for="anyFile" id="dropZone"
@@ -293,9 +294,6 @@ tr:hover td { background:#FAFBFD; }
         🟢 구글시트 → 다운로드 → 웹페이지(.html) &nbsp;|&nbsp; 🔵 엑셀 → .xlsx 그대로
       </div>
     </label>
-    <div class="upload-actions" style="margin-top:10px">
-      <button class="btn-secondary" onclick="loadSampleData()">📋 기본 데이터로 보기 (1분기)</button>
-    </div>
     <div class="upload-status" id="uploadStatus"></div>
     <div class="upload-help">
       💡 <b>구글시트 순서:</b> 해당 분기 탭 클릭 → 파일 → 다운로드 → 웹페이지(.html, 현재 시트) → 위에 올리기
@@ -826,10 +824,19 @@ function renderCertTab() {
   tbody.innerHTML = rows;
 }
 
+function selectQuarter(q) {
+  currentQuarter = q;
+  // 버튼 활성화 표시
+  ['Q1','Q2','Q3','Q4'].forEach(k => {
+    const btn = document.getElementById('qbtn-' + k);
+    if (btn) btn.classList.toggle('qbtn-active', k === q);
+  });
+}
+
 function loadSampleData() {
   currentData = DEFAULT_Q1;
   currentQuarter = 'Q1';
-  document.getElementById('quarterSelect').value = 'Q1';
+  selectQuarter('Q1');
   renderAll();
   showStatus('✅ 1분기 기본 데이터가 로드되었습니다. (35개 지표)');
 }
@@ -842,6 +849,14 @@ function handleFileUpload(event) {
 
 function routeFile(file) {
   const name = file.name.toLowerCase();
+  // 파일명에서 분기 자동 감지
+  const qDetect = name.includes('4분기') ? 'Q4'
+    : name.includes('3분기') ? 'Q3'
+    : name.includes('2분기') ? 'Q2'
+    : name.includes('1분기') ? 'Q1'
+    : null;
+  if (qDetect) selectQuarter(qDetect);
+
   if (name.endsWith('.xlsx') || name.endsWith('.xls')) {
     parseXlsxFile(file);
   } else if (name.endsWith('.html') || name.endsWith('.htm')) {
@@ -865,8 +880,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 function parseXlsxFile(file) {
-  const quarter = document.getElementById('quarterSelect').value;
-  currentQuarter = quarter;
+  const quarter = currentQuarter;
   showStatus('📖 엑셀 파일 읽는 중...');
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -974,8 +988,7 @@ function updateDropZone(filename, type) {
 }
 
 function parseHtmlFile(file) {
-  const quarter = document.getElementById('quarterSelect').value;
-  currentQuarter = quarter;
+  const quarter = currentQuarter;
   showStatus('📖 파일 읽는 중...');
   const reader = new FileReader();
   reader.onload = function(e) {
@@ -1246,7 +1259,7 @@ async function generateAISummary() {
 }
 
 window.onload = () => {
-  loadSampleData();
+  selectQuarter('Q1');
   toggleUpload();
 };
 </script>
