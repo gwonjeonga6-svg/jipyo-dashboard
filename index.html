@@ -278,12 +278,14 @@ tr:hover td { background:#FAFBFD; }
       <b>구글시트 사용자:</b> 파일 → 다운로드 → 웹페이지(.html, 현재 시트)<br>
       <b>엑셀 사용자:</b> .xlsx 파일을 그대로 올리기
     </div>
-    <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;">
-      <span style="font-size:12px;color:#64748B;margin-right:4px">분기 선택:</span>
+    <div style="display:flex;gap:6px;margin-bottom:12px;align-items:center;flex-wrap:wrap;">
+      <span style="font-size:12px;color:#64748B;margin-right:4px">기간 선택:</span>
       <button id="qbtn-Q1" onclick="selectQuarter('Q1')" class="qbtn qbtn-active">1분기</button>
       <button id="qbtn-Q2" onclick="selectQuarter('Q2')" class="qbtn">2분기</button>
       <button id="qbtn-Q3" onclick="selectQuarter('Q3')" class="qbtn">3분기</button>
       <button id="qbtn-Q4" onclick="selectQuarter('Q4')" class="qbtn">4분기</button>
+      <span style="color:#E2E8F0;margin:0 2px">|</span>
+      <button id="qbtn-YR" onclick="selectQuarter('YR')" class="qbtn">연간</button>
     </div>
     <input type="file" id="anyFile" accept=".html,.htm,.xlsx" style="display:none" onchange="handleFileUpload(event)">
     <label for="anyFile" id="dropZone"
@@ -449,12 +451,14 @@ const AREA_CONFIG = {
 };
 
 const QUARTER_LABELS = {
-  Q1:'2026년 1분기', Q2:'2026년 2분기', Q3:'2026년 3분기', Q4:'2026년 4분기'
+  Q1:'2026년 1분기', Q2:'2026년 2분기', Q3:'2026년 3분기', Q4:'2026년 4분기',
+  YR:'2026년 연간'
 };
 
 const MONTH_LABELS = {
   Q1:['1월','2월','3월'], Q2:['4월','5월','6월'],
-  Q3:['7월','8월','9월'], Q4:['10월','11월','12월']
+  Q3:['7월','8월','9월'], Q4:['10월','11월','12월'],
+  YR:['상반기','하반기','연간']
 };
 
 function showTab(name) {
@@ -619,7 +623,7 @@ function renderTrendTab() {
   Object.values(_trendCharts).forEach(c => { try { c.destroy(); } catch(e){} });
   _trendCharts = {};
   const mLabels = MONTH_LABELS[currentQuarter] || ['1월','2월','3월'];
-  const qSuffix = { Q1:'(1분기)', Q2:'(2분기)', Q3:'(3분기)', Q4:'(4분기)' }[currentQuarter] || '';
+  const qSuffix = { Q1:'(1분기)', Q2:'(2분기)', Q3:'(3분기)', Q4:'(4분기)', YR:'(연간)' }[currentQuarter] || '';
   container.innerHTML = '';
 
   currentData.forEach((d, idx) => {
@@ -826,8 +830,7 @@ function renderCertTab() {
 
 function selectQuarter(q) {
   currentQuarter = q;
-  // 버튼 활성화 표시
-  ['Q1','Q2','Q3','Q4'].forEach(k => {
+  ['Q1','Q2','Q3','Q4','YR'].forEach(k => {
     const btn = document.getElementById('qbtn-' + k);
     if (btn) btn.classList.toggle('qbtn-active', k === q);
   });
@@ -854,6 +857,7 @@ function routeFile(file) {
     : name.includes('3분기') ? 'Q3'
     : name.includes('2분기') ? 'Q2'
     : name.includes('1분기') ? 'Q1'
+    : name.includes('연간') || name.includes('annual') ? 'YR'
     : null;
   if (qDetect) selectQuarter(qDetect);
 
