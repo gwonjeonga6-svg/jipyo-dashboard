@@ -623,7 +623,7 @@ function renderTrendTab() {
   container.innerHTML = '';
 
   currentData.forEach((d, idx) => {
-    const toNum = v => (v !== '' && v !== null && v !== undefined && !isNaN(parseFloat(v))) ? parseFloat(v) : null;
+    const toNum = v => (v !== '' && v !== null && v !== undefined && !isNaN(parseFloat(v))) ? Math.round(parseFloat(v) * 10000) / 10000 : null;
     const yearVals = [
       { label:'2023년', val: toNum(d.y23) },
       { label:'2024년', val: toNum(d.y24) },
@@ -742,7 +742,7 @@ function renderTrendTab() {
             },
             tooltip: {
               callbacks: {
-                label: ctx => `${ctx.dataset.label}: ${ctx.parsed.y}${d.unit||''}`
+                label: ctx => `${ctx.dataset.label}: ${Math.round(ctx.parsed.y * 1000) / 1000}${d.unit||''}`
               }
             }
           },
@@ -767,7 +767,7 @@ function renderTrendTab() {
               grid: { color: '#F1F5F9' },
               ticks: {
                 font: { size: 10 },
-                callback: v => v + (d.unit||'')
+                callback: v => (Math.round(v * 1000) / 1000) + (d.unit||'')
               }
             }
           }
